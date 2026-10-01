@@ -33,9 +33,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create $tag --title $version --notes "CptSpaceDust Desktop $version"
           }
+          Copy-Item "dist/CptSpaceDust Community Setup $version.exe" "dist/CptSpaceDust-Community-Setup-$version.exe"
+          Copy-Item "dist/CptSpaceDust Community Setup $version.exe.blockmap" "dist/CptSpaceDust-Community-Setup-$version.exe.blockmap"
+          Copy-Item "dist/CptSpaceDust Community $version.exe" "dist/CptSpaceDust-Community-$version.exe"
+          $assetNames = @(gh release view $tag --json assets --jq '.assets[].name')
+          $legacyNames = @(
+            "CptSpaceDust.Community.Setup.$version.exe",
+            "CptSpaceDust.Community.Setup.$version.exe.blockmap",
+            "CptSpaceDust.Community.$version.exe"
+          )
+          foreach ($assetName in $legacyNames) {
+            if ($assetNames -contains $assetName) {
+              gh release delete-asset $tag $assetName --yes
+            }
+          }
           gh release upload $tag `
-            "dist/CptSpaceDust Community Setup $version.exe" `
-            "dist/CptSpaceDust Community Setup $version.exe.blockmap" `
-            "dist/CptSpaceDust Community $version.exe" `
+            "dist/CptSpaceDust-Community-Setup-$version.exe" `
+            "dist/CptSpaceDust-Community-Setup-$version.exe.blockmap" `
+            "dist/CptSpaceDust-Community-$version.exe" `
             "dist/latest.yml" `
             --clobber
