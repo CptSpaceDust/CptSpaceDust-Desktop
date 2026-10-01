@@ -1,0 +1,12 @@
+node_modules/
+dist-renderer/
+release*/
+audit-evidence/
+.runtime-test-profile/
+dist/
+dist-fixed/
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db

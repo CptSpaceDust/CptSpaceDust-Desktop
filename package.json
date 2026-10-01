@@ -1,0 +1,66 @@
+{
+  "name": "cptspacedust-desktop",
+  "version": "1.2.0",
+  "private": true,
+  "author": "CptSpaceDust",
+  "description": "A custom desktop client for the CptSpaceDust community.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "npm run build:renderer && electron .",
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron . --dev\"",
+    "build:renderer": "vite build",
+    "test": "node --test --test-isolation=none tests/*.test.js",
+    "pack": "npm run build:renderer && electron-builder --dir",
+    "dist": "npm run build:renderer && electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "@hcaptcha/react-hcaptcha": "^1.12.1",
+    "@supabase/supabase-js": "2.57.4",
+    "electron-updater": "6.8.9",
+    "livekit-client": "2.15.6",
+    "lucide-react": "0.468.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "concurrently": "9.2.1",
+    "electron": "38.8.6",
+    "electron-builder": "26.15.3",
+    "prettier": "3.6.2",
+    "vite": "6.1.0",
+    "wait-on": "8.0.3"
+  },
+  "build": {
+    "appId": "com.cptspacedust.community",
+    "productName": "CptSpaceDust Community",
+    "asar": true,
+    "files": [
+      "dist-renderer/**/*",
+      "assets/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "CptSpaceDust",
+        "repo": "CptSpaceDust-Desktop",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

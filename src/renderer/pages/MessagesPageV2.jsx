@@ -1,0 +1,1936 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Check,
+  Edit3,
+  Maximize2,
+  Mic,
+  MicOff,
+  Monitor,
+  MonitorUp,
+  Phone,
+  PhoneOff,
+  Plus,
+  Reply,
+  Search,
+  Send,
+  Trash2,
+  Users,
+  Volume2,
+  VolumeX,
+  Wifi,
+  X,
+} from "lucide-react";
+import EditMessageButton from "../components/EditMessageButton";
+import { Room, RoomEvent, Track } from "livekit-client";
+import {
+  changeGroupAvatar,
+  createGroupConversation,
+  deleteGroupMessage,
+  deleteMessage,
+  editGroupMessage,
+  editMessage,
+  getConversations,
+  getGroupConversations,
+  getGroupDetails,
+  getGroupMessages,
+  getMessageRequests,
+  getMessages,
+  getProfiles,
+  leaveGroupConversation,
+  manageGroupMember,
+  requestConversation,
+  renameGroupConversation,
+  respondToMessageRequest,
+  restrictionMessage,
+  sendGroupMessage,
+  sendMessage,
+} from "../lib/data";
+import { supabase } from "../lib/supabase";
+import {
+  Avatar,
+  Empty,
+  ErrorState,
+  Field,
+  Loading,
+  Modal,
+  PageHeader,
+} from "../components/ui";
+
+function FormattedMessage({ children }) {
+  return (
+    <>
+      {String(children || "")
+        .split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+        .map((part, index) =>
+          part.startsWith("**") && part.endsWith("**") ? (
+            <strong key={index}>{part.slice(2, -2)}</strong>
+          ) : part.startsWith("*") && part.endsWith("*") ? (
+            <em key={index}>{part.slice(1, -1)}</em>
+          ) : (
+            part
+          ),
+        )}
+    </>
+  );
+}
+
+let callAudioContext;
+
+function playCallTone(type) {
+  try {
+    callAudioContext ||= new (window.AudioContext ||
+      window.webkitAudioContext)();
+    if (callAudioContext.state === "suspended") callAudioContext.resume();
+    const notes = {
+      ring: [
+        [440, 0],
+        [554, 0.16],
+      ],
+      join: [
+        [523, 0],
+        [659, 0.11],
+        [784, 0.22],
+      ],
+      leave: [
+        [659, 0],
+        [523, 0.13],
+        [392, 0.26],
+      ],
+      toggle: [
+        [620, 0],
+        [760, 0.07],
+      ],
+      share: [
+        [392, 0],
+        [523, 0.1],
+        [698, 0.2],
+      ],
+    }[type] || [[520, 0]];
+    const now = callAudioContext.currentTime;
+    notes.forEach(([frequency, offset], index) => {
+      const oscillator = callAudioContext.createOscillator();
+      const gain = callAudioContext.createGain();
+      oscillator.type = type === "ring" ? "sine" : "triangle";
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.12, now + offset + 0.015);
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        now + offset + (type === "ring" ? 0.28 : 0.13),
+      );
+      oscillator.connect(gain).connect(callAudioContext.destination);
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + (type === "ring" ? 0.3 : 0.15));
+      if (index === notes.length - 1)
+        oscillator.onended = () => oscillator.disconnect();
+    });
+  } catch {
+    /* Sounds are an enhancement; a call must still work without them. */
+  }
+}
+
+function participantProfile(participant, local = false) {
+  let metadata = {};
+  try {
+    metadata = JSON.parse(participant?.metadata || "{}");
+  } catch {
+    /* Ignore malformed optional metadata. */
+  }
+  return {
+    username: participant?.name || (local ? "You" : "Crew member"),
+    avatar: metadata.avatar || "",
+  };
+}
+
+function ScreenShareTile({ item }) {
+  const videoRef = useRef();
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !item.track) return;
+    item.track.attach(video);
+    return () => item.track.detach(video);
+  }, [item.track]);
+  return (
+    <article className="call-screen-card">
+      <header>
+        <span>
+          <Monitor /> {item.name} is sharing
+        </span>
+        <button
+          title="View shared screen fullscreen"
+          onClick={() => videoRef.current?.requestFullscreen?.()}
+        >
+          <Maximize2 />
+        </button>
+      </header>
+      <video ref={videoRef} autoPlay playsInline muted={item.local} />
+    </article>
+  );
+}
+
+function VoiceCall({ conversation, user, onClose, requestedCallId }) {
+  const [status, setStatus] = useState("Preparing your secure voice room…");
+  const [connected, setConnected] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [busyControl, setBusyControl] = useState("");
+  const [participants, setParticipants] = useState([]);
+  const [speaking, setSpeaking] = useState(new Set());
+  const [screens, setScreens] = useState([]);
+  const [duration, setDuration] = useState("00:00");
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const [sources, setSources] = useState(null);
+  const [sourceError, setSourceError] = useState("");
+  const [volumes, setVolumes] = useState({});
+  const roomRef = useRef();
+  const callRef = useRef();
+  const startedAtRef = useRef(0);
+  const audioElementsRef = useRef(new Map());
+
+  const callTitle =
+    conversation.type === "group"
+      ? conversation.name
+      : conversation.person?.username || "Crew member";
+
+  useEffect(() => {
+    let disposed = false;
+    let heartbeat;
+    let ringback;
+    let timer;
+    async function join() {
+      try {
+        playCallTone("ring");
+        ringback = setInterval(() => playCallTone("ring"), 2400);
+        const blocked = await restrictionMessage(user.id, "calls");
+        if (blocked) throw new Error(blocked);
+        const isGroup = conversation.type === "group";
+        const contextColumn = isGroup
+          ? "group_conversation_id"
+          : "dm_conversation_id";
+        const contextId = conversation.id;
+        let callId = requestedCallId;
+        const { data: existing } = await supabase
+          .from("active_voice_calls")
+          .select("call_id,last_active_at")
+          .eq(contextColumn, contextId)
+          .maybeSingle();
+        const fresh =
+          existing &&
+          Date.now() - new Date(existing.last_active_at).getTime() < 90000;
+        if (fresh) callId = existing.call_id;
+        else {
+          callId ||= crypto.randomUUID();
+          if (existing)
+            await supabase
+              .from("active_voice_calls")
+              .delete()
+              .eq("call_id", existing.call_id);
+          const { error } = await supabase.from("active_voice_calls").insert({
+            call_id: callId,
+            dm_conversation_id: isGroup ? null : contextId,
+            group_conversation_id: isGroup ? contextId : null,
+            started_by: user.id,
+            last_active_at: new Date().toISOString(),
+          });
+          if (error) throw error;
+        }
+        callRef.current = callId;
+        const { data, error } = await supabase.functions.invoke(
+          "livekit-voice-token",
+          {
+            body: isGroup
+              ? { groupId: contextId, callId }
+              : { conversationId: contextId, callId },
+          },
+        );
+        if (error || !data?.serverUrl || !data?.participantToken)
+          throw error || new Error("Voice service is unavailable.");
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+          disconnectOnPageLeave: true,
+        });
+        roomRef.current = room;
+        const refresh = () => {
+          if (disposed) return;
+          setParticipants([
+            room.localParticipant,
+            ...room.remoteParticipants.values(),
+          ]);
+          setMuted(!room.localParticipant.isMicrophoneEnabled);
+        };
+        const refreshScreens = () => {
+          const items = [];
+          const all = [
+            [room.localParticipant, true],
+            ...Array.from(room.remoteParticipants.values()).map((person) => [
+              person,
+              false,
+            ]),
+          ];
+          all.forEach(([person, local]) => {
+            const publication = person.getTrackPublication?.(
+              Track.Source.ScreenShare,
+            );
+            if (publication?.track)
+              items.push({
+                key: `${person.identity}:${publication.trackSid || publication.track.sid}`,
+                track: publication.track,
+                name: participantProfile(person, local).username,
+                local,
+              });
+          });
+          setScreens(items);
+          setSharing(
+            Boolean(
+              room.localParticipant.getTrackPublication?.(
+                Track.Source.ScreenShare,
+              ),
+            ),
+          );
+        };
+        const attachAudio = (track, publication, participant) => {
+          if (track.kind !== Track.Kind.Audio) return;
+          const key = `${participant.identity}:${publication.trackSid || track.sid}`;
+          audioElementsRef.current.get(key)?.remove();
+          const element = track.attach();
+          element.autoplay = true;
+          element.dataset.desktopCall = "true";
+          element.volume = volumes[participant.identity] ?? 1;
+          document.body.appendChild(element);
+          audioElementsRef.current.set(key, element);
+          room.startAudio().catch(() => setAudioBlocked(true));
+        };
+        const detachTrack = (track, publication, participant) => {
+          if (track.kind === Track.Kind.Audio) {
+            const key = `${participant.identity}:${publication.trackSid || track.sid}`;
+            track.detach().forEach((element) => element.remove());
+            audioElementsRef.current.get(key)?.remove();
+            audioElementsRef.current.delete(key);
+          }
+          refreshScreens();
+        };
+        room
+          .on(RoomEvent.ParticipantConnected, () => {
+            clearInterval(ringback);
+            playCallTone("join");
+            setStatus("Voice chat connected.");
+            refresh();
+          })
+          .on(RoomEvent.ParticipantDisconnected, () => {
+            playCallTone("leave");
+            setStatus(
+              room.remoteParticipants.size
+                ? "Voice chat connected."
+                : "Connected. Waiting for other crew members…",
+            );
+            refresh();
+            refreshScreens();
+          })
+          .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+            attachAudio(track, publication, participant);
+            refreshScreens();
+            refresh();
+          })
+          .on(RoomEvent.TrackUnsubscribed, detachTrack)
+          .on(RoomEvent.LocalTrackPublished, () => {
+            refreshScreens();
+            refresh();
+          })
+          .on(RoomEvent.LocalTrackUnpublished, () => {
+            refreshScreens();
+            refresh();
+          })
+          .on(RoomEvent.TrackMuted, refresh)
+          .on(RoomEvent.TrackUnmuted, refresh)
+          .on(RoomEvent.ParticipantMetadataChanged, refresh)
+          .on(RoomEvent.ActiveSpeakersChanged, (active) =>
+            setSpeaking(new Set(active.map((person) => person.identity))),
+          )
+          .on(RoomEvent.AudioPlaybackStatusChanged, () =>
+            setAudioBlocked(!room.canPlaybackAudio),
+          )
+          .on(RoomEvent.Reconnecting, () =>
+            setStatus("Reconnecting your voice chat…"),
+          )
+          .on(RoomEvent.Reconnected, () => {
+            setStatus(
+              room.remoteParticipants.size
+                ? "Voice chat connected."
+                : "Connected. Waiting for other crew members…",
+            );
+            refresh();
+          });
+        await room.connect(data.serverUrl, data.participantToken, {
+          autoSubscribe: true,
+        });
+        await room.localParticipant.setMicrophoneEnabled(true);
+        if (disposed) return;
+        clearInterval(ringback);
+        refresh();
+        refreshScreens();
+        setConnected(true);
+        setStatus(
+          room.remoteParticipants.size
+            ? "Voice chat connected."
+            : "Connected. Waiting for other crew members…",
+        );
+        playCallTone("join");
+        startedAtRef.current = Date.now();
+        timer = setInterval(() => {
+          const seconds = Math.floor(
+            (Date.now() - startedAtRef.current) / 1000,
+          );
+          const hours = Math.floor(seconds / 3600);
+          const minutes = Math.floor((seconds % 3600) / 60);
+          const rest = seconds % 60;
+          setDuration(
+            hours
+              ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`
+              : `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`,
+          );
+        }, 1000);
+        heartbeat = setInterval(
+          () =>
+            supabase
+              .from("active_voice_calls")
+              .update({ last_active_at: new Date().toISOString() })
+              .eq("call_id", callId),
+          15000,
+        );
+        if (!fresh) {
+          const recipients = isGroup
+            ? (conversation.members || [])
+                .map((member) => member.id)
+                .filter((id) => id !== user.id)
+            : [conversation.person.id];
+          await Promise.allSettled(
+            recipients.map((targetUserId) =>
+              supabase.rpc("create_notification", {
+                target_user_id: targetUserId,
+                notification_type: "voice_call",
+                notification_title: "Incoming voice call",
+                notification_message: `${conversation.meName || "A crew member"} wants to call you!`,
+                notification_link: `Conversation.html?${isGroup ? "group" : "id"}=${contextId}&call=${callId}`,
+              }),
+            ),
+          );
+        }
+      } catch (error) {
+        clearInterval(ringback);
+        setStatus(error.message || "The call could not connect.");
+      }
+    }
+    join();
+    return () => {
+      disposed = true;
+      clearInterval(heartbeat);
+      clearInterval(ringback);
+      clearInterval(timer);
+      const room = roomRef.current;
+      const wasOnlyParticipant = !room || room.remoteParticipants.size === 0;
+      room?.disconnect();
+      audioElementsRef.current.forEach((element) => element.remove());
+      audioElementsRef.current.clear();
+      if (wasOnlyParticipant && callRef.current)
+        supabase
+          .from("active_voice_calls")
+          .delete()
+          .eq("call_id", callRef.current)
+          .then(() => {});
+    };
+  }, []);
+
+  async function toggleMic() {
+    if (!roomRef.current || busyControl) return;
+    setBusyControl("mic");
+    try {
+      const next = !muted;
+      await roomRef.current.localParticipant.setMicrophoneEnabled(!next);
+      setMuted(next);
+      setStatus(next ? "Your microphone is muted." : "Voice chat connected.");
+      playCallTone("toggle");
+      setParticipants((current) => [...current]);
+    } catch {
+      setStatus("Your microphone could not be changed. Check its permission.");
+    } finally {
+      setBusyControl("");
+    }
+  }
+
+  async function beginShare(sourceId) {
+    if (!roomRef.current) return;
+    setBusyControl("share");
+    setSourceError("");
+    try {
+      if (sourceId) {
+        const selected =
+          await window.desktop?.screenShare?.selectSource(sourceId);
+        if (!selected?.ok)
+          throw new Error("That screen is no longer available.");
+      }
+      await roomRef.current.localParticipant.setScreenShareEnabled(true, {
+        audio: true,
+        contentHint: "detail",
+        selfBrowserSurface: "exclude",
+        surfaceSwitching: "include",
+        systemAudio: "include",
+      });
+      setSources(null);
+      setSharing(true);
+      setStatus("Your screen is being shared.");
+      playCallTone("share");
+    } catch (error) {
+      if (sources)
+        setSourceError(error.message || "Screen sharing could not start.");
+      else setStatus("Screen sharing was cancelled or could not start.");
+    } finally {
+      setBusyControl("");
+    }
+  }
+
+  async function toggleShare() {
+    if (!roomRef.current || busyControl) return;
+    if (sharing) {
+      setBusyControl("share");
+      try {
+        await roomRef.current.localParticipant.setScreenShareEnabled(false);
+        setSharing(false);
+        setStatus("Voice chat connected.");
+        playCallTone("toggle");
+      } finally {
+        setBusyControl("");
+      }
+      return;
+    }
+    try {
+      setBusyControl("sources");
+      const available = await window.desktop?.screenShare?.listSources();
+      if (available?.length) setSources(available);
+      else await beginShare();
+    } catch {
+      setStatus("No screens or windows are available to share.");
+    } finally {
+      setBusyControl("");
+    }
+  }
+
+  function changeVolume(participantId, value) {
+    const volume = Number(value) / 100;
+    setVolumes((current) => ({ ...current, [participantId]: volume }));
+    for (const [key, element] of audioElementsRef.current) {
+      if (key.startsWith(`${participantId}:`)) element.volume = volume;
+    }
+  }
+
+  async function enableAudio() {
+    try {
+      await roomRef.current?.startAudio();
+      setAudioBlocked(false);
+    } catch {
+      setStatus(
+        "Audio is still blocked by the system. Check your sound settings.",
+      );
+    }
+  }
+
+  function leaveCall() {
+    playCallTone("leave");
+    onClose();
+  }
+
+  return (
+    <div className="call-overlay">
+      <section className="call-panel" aria-label={`${callTitle} voice call`}>
+        <div className="call-glow" />
+        <header className="call-header">
+          <div>
+            <span className="eyebrow">
+              {conversation.type === "group" ? "Group" : "Private"} voice
+              channel
+            </span>
+            <h2>{callTitle}</h2>
+          </div>
+          <div
+            className={connected ? "call-connection online" : "call-connection"}
+          >
+            <Wifi />
+            <span>{connected ? duration : "Connecting"}</span>
+          </div>
+        </header>
+
+        <div className="call-status" role="status">
+          {status}
+        </div>
+        {audioBlocked && (
+          <button className="call-audio-warning" onClick={enableAudio}>
+            <VolumeX /> Click to turn call audio on
+          </button>
+        )}
+
+        {screens.length > 0 && (
+          <div className="call-screen-grid">
+            {screens.map((item) => (
+              <ScreenShareTile item={item} key={item.key} />
+            ))}
+          </div>
+        )}
+
+        <div className="call-participants">
+          {participants.map((participant, index) => {
+            const local = index === 0;
+            const profile = participantProfile(participant, local);
+            const micPublication = participant.getTrackPublication?.(
+              Track.Source.Microphone,
+            );
+            const isMuted =
+              Boolean(micPublication?.isMuted) || (local && muted);
+            const isSpeaking = speaking.has(participant.identity);
+            return (
+              <article
+                className={`call-participant${isSpeaking ? " speaking" : ""}${isMuted ? " muted" : ""}`}
+                key={participant.identity || "local"}
+              >
+                <div className="call-avatar-wrap">
+                  <Avatar profile={profile} size={72} />
+                  <span className="call-speaking-ring" />
+                  {isMuted && (
+                    <span className="call-mute-badge">
+                      <MicOff />
+                    </span>
+                  )}
+                </div>
+                <strong>
+                  {profile.username}
+                  {local ? " (you)" : ""}
+                </strong>
+                {!local && (
+                  <label
+                    className="call-volume"
+                    title={`${profile.username} volume`}
+                  >
+                    {(volumes[participant.identity] ?? 1) === 0 ? (
+                      <VolumeX />
+                    ) : (
+                      <Volume2 />
+                    )}
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={Math.round(
+                        (volumes[participant.identity] ?? 1) * 100,
+                      )}
+                      onChange={(event) =>
+                        changeVolume(participant.identity, event.target.value)
+                      }
+                    />
+                  </label>
+                )}
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="participant-count">
+          <Users /> {participants.length || 1} connected
+        </div>
+        <footer className="call-actions">
+          <button
+            className={muted ? "call-button active" : "call-button"}
+            disabled={!connected || Boolean(busyControl)}
+            onClick={toggleMic}
+            title={muted ? "Unmute microphone" : "Mute microphone"}
+          >
+            {muted ? <MicOff /> : <Mic />}
+            <span>{muted ? "Unmute" : "Mute"}</span>
+          </button>
+          <button
+            className={sharing ? "call-button sharing" : "call-button"}
+            disabled={!connected || Boolean(busyControl)}
+            onClick={toggleShare}
+            title={sharing ? "Stop sharing" : "Share a screen or window"}
+          >
+            <MonitorUp />
+            <span>{sharing ? "Stop sharing" : "Share screen"}</span>
+          </button>
+          <button
+            className="call-button hangup"
+            onClick={leaveCall}
+            title="Leave call"
+          >
+            <PhoneOff />
+            <span>Leave</span>
+          </button>
+        </footer>
+      </section>
+
+      {sources && (
+        <div
+          className="call-source-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose what to share"
+        >
+          <section className="call-source-picker">
+            <header>
+              <div>
+                <span className="eyebrow">Screen sharing</span>
+                <h3>Choose what to share</h3>
+              </div>
+              <button
+                onClick={() => setSources(null)}
+                title="Cancel screen sharing"
+              >
+                <X />
+              </button>
+            </header>
+            {sourceError && (
+              <div className="inline-message error">{sourceError}</div>
+            )}
+            <div className="call-source-grid">
+              {sources.map((source) => (
+                <button
+                  key={source.id}
+                  onClick={() => beginShare(source.id)}
+                  disabled={busyControl === "share"}
+                >
+                  <span className="call-source-preview">
+                    {source.thumbnail ? (
+                      <img src={source.thumbnail} alt="" />
+                    ) : (
+                      <Monitor />
+                    )}
+                  </span>
+                  <span className="call-source-name">
+                    {source.icon && <img src={source.icon} alt="" />}
+                    <strong>{source.name}</strong>
+                    <small>
+                      {source.kind === "screen" ? "Entire screen" : "Window"}
+                    </small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MessageRequestLauncher({ user, profile, onChanged, onNotice }) {
+  const [open, setOpen] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState("");
+  async function show() {
+    setOpen(true);
+    try {
+      setPeople(
+        (await getProfiles("id,username,avatar,rank,last_seen")).filter(
+          (person) => person.id !== user.id,
+        ),
+      );
+    } catch (error) {
+      onNotice(error.message);
+    }
+  }
+  async function choose(person) {
+    setBusy(person.id);
+    try {
+      const blocked = await restrictionMessage(user.id, "messaging");
+      if (blocked) throw new Error(blocked);
+      const result = await requestConversation(user, profile, person);
+      if (result.conversationId)
+        onNotice(`Your conversation with ${person.username} is ready.`);
+      else if (result.pendingIncoming)
+        onNotice("This person already sent you a request. Accept it below.");
+      else if (result.pendingOutgoing)
+        onNotice("You already sent this person a message request.");
+      else onNotice(`Message request sent to ${person.username}.`);
+      setOpen(false);
+      await onChanged();
+    } catch (error) {
+      onNotice(error.message);
+    } finally {
+      setBusy("");
+    }
+  }
+  const shown = people.filter((person) =>
+    `${person.username || ""} ${person.rank || ""}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
+  return (
+    <>
+      <button className="button primary" onClick={show}>
+        <Plus />
+        Request to DM
+      </button>
+      {open && (
+        <Modal title="New Conversation" onClose={() => setOpen(false)}>
+          <p className="modal-copy">
+            Choose a crew member. If you do not already share a conversation,
+            they will receive a message request.
+          </p>
+          <div className="conversation-search request-search">
+            <Search />
+            <input
+              autoFocus
+              placeholder="Search crew members..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <div className="crew-picker">
+            {shown.map((person) => (
+              <button
+                disabled={busy === person.id}
+                onClick={() => choose(person)}
+                key={person.id}
+              >
+                <Avatar profile={person} />
+                <span>
+                  <strong>{person.username || "Crew member"}</strong>
+                  <small>{person.rank || "Crew Member"}</small>
+                </span>
+                <em>{busy === person.id ? "Sending…" : "Request to DM"}</em>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function DirectMessagesPage({
+  user,
+  profile,
+  initialPerson,
+  route,
+  onShowGroups,
+}) {
+  const [conversations, setConversations] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [query, setQuery] = useState("");
+  const [call, setCall] = useState(null);
+  const [replying, setReplying] = useState(null);
+  const endRef = useRef();
+  async function loadAll() {
+    try {
+      const [items, pending] = await Promise.all([
+        getConversations(user.id),
+        getMessageRequests(user.id),
+      ]);
+      setConversations(items);
+      setRequests(pending);
+      setSelected((current) =>
+        current
+          ? items.find((x) => x.id === current.id) || current
+          : items[0] || null,
+      );
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    loadAll();
+    const channel = supabase
+      .channel(`desktop-messages-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "dm_requests" },
+        loadAll,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "dm_conversations" },
+        loadAll,
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [user.id]);
+  useEffect(() => {
+    if (!initialPerson) return;
+    (async () => {
+      setNotice("");
+      const blocked = await restrictionMessage(user.id, "messaging");
+      if (blocked) return setNotice(blocked);
+      try {
+        const result = await requestConversation(user, profile, initialPerson);
+        if (result.conversationId) {
+          await loadAll();
+          const items = await getConversations(user.id);
+          setSelected(
+            items.find((x) => x.id === result.conversationId) || null,
+          );
+        } else if (result.pendingIncoming)
+          setNotice("This person already sent you a request. Accept it below.");
+        else if (result.pendingOutgoing)
+          setNotice("You already sent this person a message request.");
+        else setNotice("Message request sent.");
+      } catch (e) {
+        setNotice(e.message);
+      }
+    })();
+  }, [initialPerson?.id]);
+  useEffect(() => {
+    if (!route?.conversation || !conversations.length) return;
+    const found = conversations.find((x) => x.id === route.conversation);
+    if (found) {
+      setSelected(found);
+      if (route.call) setCall({ conversation: found, callId: route.call });
+    }
+  }, [route?.conversation, conversations.length]);
+  useEffect(() => {
+    if (!selected) {
+      setMessages([]);
+      return;
+    }
+    let live = true;
+    getMessages(selected.id)
+      .then((rows) => live && setMessages(rows))
+      .catch((e) => setError(e.message));
+    const channel = supabase
+      .channel(`desktop-dm-${selected.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "dm_messages",
+          filter: `conversation_id=eq.${selected.id}`,
+        },
+        async () => {
+          const rows = await getMessages(selected.id);
+          if (live) setMessages(rows);
+        },
+      )
+      .subscribe();
+    return () => {
+      live = false;
+      supabase.removeChannel(channel);
+    };
+  }, [selected?.id]);
+  useEffect(
+    () => endRef.current?.scrollIntoView({ behavior: "smooth" }),
+    [messages.length],
+  );
+  const visible = useMemo(
+    () =>
+      conversations.filter((x) =>
+        x.person?.username?.toLowerCase().includes(query.toLowerCase()),
+      ),
+    [conversations, query],
+  );
+  const byId = useMemo(
+    () => Object.fromEntries(messages.map((x) => [x.id, x])),
+    [messages],
+  );
+  async function respond(request, status) {
+    try {
+      const id = await respondToMessageRequest(
+        request,
+        user.id,
+        status,
+        profile.username,
+      );
+      await loadAll();
+      if (id) {
+        const items = await getConversations(user.id);
+        setSelected(items.find((x) => x.id === id) || null);
+      }
+      setNotice(
+        status === "Accepted"
+          ? "Message request accepted."
+          : "Message request declined.",
+      );
+    } catch (e) {
+      setNotice(e.message);
+    }
+  }
+  async function send(e) {
+    e.preventDefault();
+    const input = e.currentTarget.elements.message;
+    const content = input.value.trim();
+    if (!content || !selected) return;
+    const blocked = await restrictionMessage(user.id, "messaging");
+    if (blocked) return setNotice(blocked);
+    try {
+      input.value = "";
+      await sendMessage(
+        selected.id,
+        user.id,
+        selected.person.id,
+        content,
+        replying?.id || null,
+      );
+      setReplying(null);
+    } catch (x) {
+      setNotice(x.message);
+    }
+  }
+  async function remove(item) {
+    if (!confirm("Delete this message?")) return;
+    try {
+      await deleteMessage(item.id, user.id);
+      setMessages((rows) => rows.filter((x) => x.id !== item.id));
+    } catch (x) {
+      setNotice(x.message);
+    }
+  }
+  if (loading)
+    return (
+      <div className="page">
+        <Loading />
+      </div>
+    );
+  if (error)
+    return (
+      <div className="page">
+        <ErrorState message={error} retry={loadAll} />
+      </div>
+    );
+  return (
+    <div className="page messages-page">
+      <PageHeader
+        eyebrow="Crew comms"
+        title="Messages"
+        description="Private conversations, requests, replies, editing, and voice calls."
+        action={
+          <MessageRequestLauncher
+            user={user}
+            profile={profile}
+            onChanged={loadAll}
+            onNotice={setNotice}
+          />
+        }
+      />
+      <div className="message-mode-tabs">
+        <button className="active">DM Messages</button>
+        <button onClick={onShowGroups}>Group Messages</button>
+      </div>
+      {notice && <p className="form-message">{notice}</p>}
+      {requests.length > 0 && (
+        <section className="panel request-panel">
+          <h3>Message requests ({requests.length})</h3>
+          {requests.map((request) => (
+            <div className="message-request" key={request.id}>
+              <Avatar profile={request.person} />
+              <span>
+                <strong>{request.person?.username || "Crew member"}</strong>
+                <small>Wants to start a conversation</small>
+              </span>
+              <button
+                className="button secondary"
+                onClick={() => respond(request, "Accepted")}
+              >
+                <Check />
+                Accept
+              </button>
+              <button
+                className="button ghost"
+                onClick={() => respond(request, "Declined")}
+              >
+                <X />
+                Decline
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+      <div className="messages-layout">
+        <aside className="panel conversation-list">
+          <div className="conversation-search">
+            <Search />
+            <input
+              placeholder="Search conversations"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          {visible.map((item) => {
+            const online =
+              item.person?.last_seen &&
+              Date.now() - new Date(item.person.last_seen).getTime() < 120000;
+            return (
+              <button
+                className={
+                  selected?.id === item.id
+                    ? "conversation active"
+                    : "conversation"
+                }
+                onClick={() => setSelected(item)}
+                key={item.id}
+              >
+                <Avatar profile={item.person} />
+                <span>
+                  <strong>{item.person?.username || "Crew member"}</strong>
+                  <small>{online ? "Online" : "Offline"}</small>
+                </span>
+              </button>
+            );
+          })}
+        </aside>
+        <section className="panel chat-panel">
+          {selected ? (
+            <>
+              <header className="chat-header">
+                <div className="card-person">
+                  <Avatar profile={selected.person} />
+                  <div>
+                    <h3>{selected.person?.username || "Crew member"}</h3>
+                    <span className="rank">
+                      {selected.person?.rank || "Crew"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  className="icon-button call"
+                  onClick={() => setCall({ conversation: selected })}
+                >
+                  <Phone />
+                </button>
+              </header>
+              <div className="message-stream">
+                {messages.map((item) => {
+                  const quoted = item.reply_to_id
+                    ? byId[item.reply_to_id]
+                    : null;
+                  return (
+                    <div
+                      className={
+                        item.sender_id === user.id ? "message mine" : "message"
+                      }
+                      tabIndex={0}
+                      key={item.id}
+                    >
+                      {quoted && <blockquote>{quoted.content}</blockquote>}
+                      <p>
+                        <FormattedMessage>{item.content}</FormattedMessage>
+                      </p>
+                      <div className="message-footer">
+                        <time>
+                          {new Date(item.created_at).toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </time>
+                        <div className="message-actions">
+                          <button
+                            onClick={() => setReplying(item)}
+                            title="Reply"
+                          >
+                            <Reply />
+                          </button>
+                          {item.sender_id === user.id && (
+                            <>
+                              <EditMessageButton
+                                message={item}
+                                userId={user.id}
+                                onSaved={(content) =>
+                                  setMessages((rows) =>
+                                    rows.map((row) =>
+                                      row.id === item.id
+                                        ? { ...row, content }
+                                        : row,
+                                    ),
+                                  )
+                                }
+                              />
+                              <button
+                                className="delete"
+                                onClick={() => remove(item)}
+                                title="Delete"
+                              >
+                                <Trash2 />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={endRef} />
+              </div>
+              {replying && (
+                <div className="reply-bar">
+                  <span>Replying to: {replying.content}</span>
+                  <button onClick={() => setReplying(null)}>
+                    <X />
+                  </button>
+                </div>
+              )}
+              <form className="composer" onSubmit={send}>
+                <textarea
+                  name="message"
+                  rows="1"
+                  maxLength="900"
+                  placeholder={`Message ${selected.person?.username || "crew member"}`}
+                />
+                <button className="send-button">
+                  <Send />
+                </button>
+              </form>
+            </>
+          ) : (
+            <Empty
+              title="Choose a conversation"
+              body="Select a conversation or use Request to DM."
+            />
+          )}
+        </section>
+      </div>
+      {call && (
+        <VoiceCall
+          conversation={{ ...call.conversation, meName: profile.username }}
+          user={user}
+          requestedCallId={call.callId}
+          onClose={() => setCall(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateGroupButton({ user, profile, onCreated, onNotice }) {
+  const [open, setOpen] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function show() {
+    setOpen(true);
+    try {
+      setPeople(
+        (await getProfiles("id,username,avatar,rank")).filter(
+          (person) => person.id !== user.id,
+        ),
+      );
+    } catch (error) {
+      onNotice(error.message);
+    }
+  }
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const blocked = await restrictionMessage(user.id, "messaging");
+      if (blocked) throw new Error(blocked);
+      const form = new FormData(event.currentTarget);
+      const members = people.filter((person) => selected.includes(person.id));
+      const name = (
+        String(form.get("name")).trim() ||
+        [profile.username, ...members.map((person) => person.username)].join(
+          ", ",
+        )
+      ).slice(0, 50);
+      const id = await createGroupConversation(
+        user.id,
+        profile,
+        selected,
+        name,
+        form.get("avatar"),
+      );
+      setOpen(false);
+      setSelected([]);
+      await onCreated(id);
+    } catch (error) {
+      onNotice(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const shown = people.filter((person) =>
+    person.username?.toLowerCase().includes(query.toLowerCase()),
+  );
+  return (
+    <>
+      <button className="button primary" onClick={show}>
+        <Plus />
+        New group
+      </button>
+      {open && (
+        <Modal
+          title="Start a group conversation"
+          onClose={() => setOpen(false)}
+        >
+          <form className="stack-form" onSubmit={submit}>
+            <p className="modal-copy">
+              Bring at least 2 other crew members aboard. Your group can have up
+              to 10 people total.
+            </p>
+            <Field label="Group name" hint="Uses member names if left blank">
+              <input name="name" maxLength="50" />
+            </Field>
+            <Field label="Group picture · PNG, JPG, or WebP">
+              <input
+                name="avatar"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                required
+              />
+            </Field>
+            <div className="conversation-search request-search">
+              <Search />
+              <input
+                placeholder="Search crew members"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+            <div className="group-picker">
+              {shown.map((person) => (
+                <label key={person.id}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(person.id)}
+                    disabled={
+                      !selected.includes(person.id) && selected.length >= 9
+                    }
+                    onChange={(event) =>
+                      setSelected((ids) =>
+                        event.target.checked
+                          ? [...ids, person.id]
+                          : ids.filter((id) => id !== person.id),
+                      )
+                    }
+                  />
+                  <Avatar profile={person} />
+                  <span>
+                    <strong>{person.username}</strong>
+                    <small>{person.rank || "Crew Member"}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="micro-copy">
+              {selected.length} selected ·{" "}
+              {selected.length < 2 ? "choose at least 2" : "ready to create"}
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button ghost"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="button primary"
+                disabled={busy || selected.length < 2}
+              >
+                {busy ? "Creating…" : "Create group"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function ManageGroupButton({ group, user, onChanged, onNotice }) {
+  const [open, setOpen] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [busy, setBusy] = useState("");
+  async function show() {
+    setOpen(true);
+    try {
+      setPeople(await getProfiles("id,username,avatar,rank"));
+    } catch (error) {
+      onNotice(error.message);
+    }
+  }
+  async function rename(event) {
+    event.preventDefault();
+    setBusy("name");
+    try {
+      const form = new FormData(event.currentTarget);
+      await renameGroupConversation(group.id, user.id, form.get("name"));
+      await onChanged();
+      setOpen(false);
+    } catch (error) {
+      onNotice(error.message);
+    } finally {
+      setBusy("");
+    }
+  }
+  async function picture(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBusy("picture");
+    try {
+      await changeGroupAvatar(group.id, user.id, file);
+      await onChanged();
+      setOpen(false);
+    } catch (error) {
+      onNotice(error.message);
+    } finally {
+      setBusy("");
+      event.target.value = "";
+    }
+  }
+  async function member(person, operation) {
+    if (
+      operation === "kick" &&
+      !confirm(`Remove ${person.username} from this group?`)
+    )
+      return;
+    setBusy(person.id);
+    try {
+      await manageGroupMember(group.id, person.id, operation, group.name);
+      await onChanged();
+      setPeople(await getProfiles("id,username,avatar,rank"));
+    } catch (error) {
+      onNotice(error.message);
+    } finally {
+      setBusy("");
+    }
+  }
+  const memberIds = new Set(group.members.map((member) => member.id));
+  const invitees = people.filter((person) => !memberIds.has(person.id));
+  const removable = group.members.filter((member) => member.id !== user.id);
+  return (
+    <>
+      <button className="button secondary compact-button" onClick={show}>
+        Manage group
+      </button>
+      {open && (
+        <Modal title="Manage group" onClose={() => setOpen(false)}>
+          <form className="stack-form" onSubmit={rename}>
+            <Field label="Group name">
+              <input
+                name="name"
+                maxLength="50"
+                defaultValue={group.name}
+                required
+              />
+            </Field>
+            <button className="button secondary" disabled={busy === "name"}>
+              {busy === "name" ? "Saving…" : "Change group name"}
+            </button>
+          </form>
+          <div className="group-manage-section">
+            <h3>Group picture</h3>
+            <Field label="PNG, JPG, or WebP under 5 MB">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={picture}
+                disabled={busy === "picture"}
+              />
+            </Field>
+          </div>
+          <div className="group-manage-section">
+            <h3>Invite member</h3>
+            <div className="crew-picker">
+              {invitees.length ? (
+                invitees.map((person) => (
+                  <button
+                    type="button"
+                    disabled={busy === person.id || group.members.length >= 10}
+                    onClick={() => member(person, "invite")}
+                    key={person.id}
+                  >
+                    <Avatar profile={person} />
+                    <span>
+                      <strong>{person.username}</strong>
+                      <small>{person.rank || "Crew Member"}</small>
+                    </span>
+                    <em>
+                      {group.members.length >= 10 ? "Group full" : "Invite"}
+                    </em>
+                  </button>
+                ))
+              ) : (
+                <p className="micro-copy">
+                  No crew members are available to invite.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="group-manage-section">
+            <h3>Remove member</h3>
+            <div className="crew-picker">
+              {removable.length ? (
+                removable.map((person) => (
+                  <button
+                    type="button"
+                    disabled={busy === person.id}
+                    onClick={() => member(person, "kick")}
+                    key={person.id}
+                  >
+                    <Avatar profile={person} />
+                    <span>
+                      <strong>{person.username}</strong>
+                      <small>{person.rank || "Crew Member"}</small>
+                    </span>
+                    <em>Remove</em>
+                  </button>
+                ))
+              ) : (
+                <p className="micro-copy">
+                  No members are available to remove.
+                </p>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function GroupMessagesPage({ user, profile, route, onShowDms }) {
+  const [groups, setGroups] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [details, setDetails] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [query, setQuery] = useState("");
+  const [replying, setReplying] = useState(null);
+  const [call, setCall] = useState(null);
+  const endRef = useRef();
+  async function loadGroups(targetId) {
+    try {
+      const rows = await getGroupConversations(user.id);
+      setGroups(rows);
+      setSelected(
+        (current) =>
+          rows.find((item) => item.id === (targetId || current?.id)) ||
+          rows[0] ||
+          null,
+      );
+      setError("");
+    } catch (exception) {
+      setError(exception.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    loadGroups(route?.group);
+    const channel = supabase
+      .channel(`desktop-groups-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "group_conversations" },
+        () => loadGroups(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "group_members" },
+        () => loadGroups(),
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [user.id]);
+  useEffect(() => {
+    if (!selected) {
+      setDetails(null);
+      setMessages([]);
+      return;
+    }
+    let live = true;
+    Promise.all([getGroupDetails(selected.id), getGroupMessages(selected.id)])
+      .then(([group, rows]) => {
+        if (live) {
+          setDetails(group);
+          setMessages(rows);
+          if (route?.call)
+            setCall({
+              conversation: { ...group, type: "group" },
+              callId: route.call,
+            });
+        }
+      })
+      .catch((exception) => setError(exception.message));
+    const channel = supabase
+      .channel(`desktop-group-${selected.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_messages",
+          filter: `group_id=eq.${selected.id}`,
+        },
+        async () => {
+          const rows = await getGroupMessages(selected.id);
+          if (live) setMessages(rows);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "group_members",
+          filter: `group_id=eq.${selected.id}`,
+        },
+        async () => {
+          if (live) setDetails(await getGroupDetails(selected.id));
+        },
+      )
+      .subscribe();
+    return () => {
+      live = false;
+      supabase.removeChannel(channel);
+    };
+  }, [selected?.id]);
+  useEffect(
+    () => endRef.current?.scrollIntoView({ behavior: "smooth" }),
+    [messages.length],
+  );
+  const profiles = useMemo(
+    () =>
+      Object.fromEntries(
+        (details?.members || []).map((member) => [member.id, member]),
+      ),
+    [details],
+  );
+  const byId = useMemo(
+    () => Object.fromEntries(messages.map((item) => [item.id, item])),
+    [messages],
+  );
+  const visible = groups.filter((item) =>
+    item.name?.toLowerCase().includes(query.toLowerCase()),
+  );
+  async function send(event) {
+    event.preventDefault();
+    const input = event.currentTarget.elements.message;
+    const content = input.value.trim();
+    if (!content || !selected) return;
+    try {
+      const blocked = await restrictionMessage(user.id, "messaging");
+      if (blocked) throw new Error(blocked);
+      input.value = "";
+      await sendGroupMessage(
+        selected.id,
+        user.id,
+        content,
+        replying?.id || null,
+      );
+      setReplying(null);
+    } catch (exception) {
+      setNotice(exception.message);
+    }
+  }
+  async function remove(item) {
+    if (!confirm("Delete this message?")) return;
+    try {
+      await deleteGroupMessage(item.id, user.id);
+      setMessages((rows) => rows.filter((row) => row.id !== item.id));
+    } catch (exception) {
+      setNotice(exception.message);
+    }
+  }
+  async function leave() {
+    try {
+      let newOwner = null;
+      if (details?.owner_id === user.id) {
+        const others = details.members.filter(
+          (member) => member.id !== user.id,
+        );
+        if (
+          others.length &&
+          confirm("Transfer ownership to another member before leaving?")
+        ) {
+          const username = prompt(
+            `New owner username:\n${others.map((member) => member.username).join(", ")}`,
+          )?.trim();
+          if (!username) return;
+          newOwner = others.find(
+            (member) =>
+              member.username.toLowerCase() === username.toLowerCase(),
+          )?.id;
+          if (!newOwner) throw new Error("Choose a listed member.");
+        } else if (
+          !confirm(
+            "Everyone will be removed and this group will be deleted. Continue?",
+          )
+        )
+          return;
+      } else if (!confirm("Leave this group?")) return;
+      await leaveGroupConversation(selected.id, newOwner);
+      setSelected(null);
+      await loadGroups();
+      setNotice("You left the group.");
+    } catch (exception) {
+      setNotice(exception.message);
+    }
+  }
+  async function created(id) {
+    await loadGroups(id);
+    setNotice("Group conversation created.");
+  }
+  if (loading)
+    return (
+      <div className="page">
+        <Loading />
+      </div>
+    );
+  if (error)
+    return (
+      <div className="page">
+        <ErrorState message={error} retry={() => loadGroups(route?.group)} />
+      </div>
+    );
+  return (
+    <div className="page messages-page">
+      <PageHeader
+        eyebrow="Crew comms"
+        title="Messages"
+        description="Direct and group conversations, requests, replies, editing, and voice calls."
+        action={
+          <CreateGroupButton
+            user={user}
+            profile={profile}
+            onCreated={created}
+            onNotice={setNotice}
+          />
+        }
+      />
+      <div className="message-mode-tabs">
+        <button onClick={onShowDms}>DM Messages</button>
+        <button className="active">Group Messages</button>
+      </div>
+      {notice && <p className="form-message">{notice}</p>}
+      <div className="messages-layout group-messages-layout">
+        <aside className="panel conversation-list">
+          <div className="conversation-search">
+            <Search />
+            <input
+              placeholder="Search groups"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          {visible.map((group) => (
+            <button
+              className={
+                selected?.id === group.id
+                  ? "conversation active"
+                  : "conversation"
+              }
+              onClick={() => setSelected(group)}
+              key={group.id}
+            >
+              <Avatar
+                profile={{ avatar: group.avatar_url, username: group.name }}
+              />
+              <span>
+                <strong>{group.name}</strong>
+                <small>Group conversation</small>
+              </span>
+            </button>
+          ))}
+        </aside>
+        <section className="panel chat-panel">
+          {details ? (
+            <>
+              <header className="chat-header">
+                <div className="card-person">
+                  <Avatar
+                    profile={{
+                      avatar: details.avatar_url,
+                      username: details.name,
+                    }}
+                  />
+                  <div>
+                    <h3>{details.name}</h3>
+                    <span className="rank">
+                      {details.members.length} members
+                    </span>
+                  </div>
+                </div>
+                <div className="group-chat-actions">
+                  <button
+                    className="icon-button call"
+                    title="Start group call"
+                    onClick={() =>
+                      setCall({ conversation: { ...details, type: "group" } })
+                    }
+                  >
+                    <Phone />
+                  </button>
+                  {details.owner_id === user.id && (
+                    <ManageGroupButton
+                      group={details}
+                      user={user}
+                      onNotice={setNotice}
+                      onChanged={async () => {
+                        const group = await getGroupDetails(selected.id);
+                        setDetails(group);
+                        await loadGroups(selected.id);
+                      }}
+                    />
+                  )}
+                  <button
+                    className="button danger compact-button"
+                    onClick={leave}
+                  >
+                    Leave group
+                  </button>
+                </div>
+              </header>
+              <div className="message-stream">
+                {messages.map((item) => {
+                  const sender = profiles[item.sender_id];
+                  const quoted = item.reply_to_id
+                    ? byId[item.reply_to_id]
+                    : null;
+                  return (
+                    <div
+                      className={
+                        item.sender_id === user.id ? "message mine" : "message"
+                      }
+                      tabIndex={0}
+                      key={item.id}
+                    >
+                      {item.sender_id !== user.id && (
+                        <small className="message-author">
+                          {sender?.username || "Former member"}
+                        </small>
+                      )}
+                      {quoted && <blockquote>{quoted.content}</blockquote>}
+                      <p>
+                        <FormattedMessage>{item.content}</FormattedMessage>
+                      </p>
+                      <div className="message-footer">
+                        <time>
+                          {new Date(item.created_at).toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                          {item.edited_at ? " · Edited" : ""}
+                        </time>
+                        <div className="message-actions">
+                          <button
+                            onClick={() => setReplying(item)}
+                            title="Reply"
+                          >
+                            <Reply />
+                          </button>
+                          {item.sender_id === user.id && (
+                            <>
+                              <EditMessageButton
+                                message={item}
+                                userId={user.id}
+                                saveMessage={editGroupMessage}
+                                onSaved={(content) =>
+                                  setMessages((rows) =>
+                                    rows.map((row) =>
+                                      row.id === item.id
+                                        ? {
+                                            ...row,
+                                            content,
+                                            edited_at: new Date().toISOString(),
+                                          }
+                                        : row,
+                                    ),
+                                  )
+                                }
+                              />
+                              <button
+                                className="delete"
+                                onClick={() => remove(item)}
+                                title="Delete"
+                              >
+                                <Trash2 />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={endRef} />
+              </div>
+              {replying && (
+                <div className="reply-bar">
+                  <span>Replying to: {replying.content}</span>
+                  <button onClick={() => setReplying(null)}>
+                    <X />
+                  </button>
+                </div>
+              )}
+              <form className="composer" onSubmit={send}>
+                <textarea
+                  name="message"
+                  rows="1"
+                  maxLength="900"
+                  placeholder={`Message ${details.name}`}
+                />
+                <button className="send-button">
+                  <Send />
+                </button>
+              </form>
+            </>
+          ) : (
+            <Empty
+              title="Choose a group"
+              body="Select a group conversation or create one."
+            />
+          )}
+        </section>
+        <aside className="panel group-members">
+          <h3>Members ({details?.members.length || 0})</h3>
+          {details?.members.map((member) => {
+            const online =
+              member.last_seen &&
+              Date.now() - new Date(member.last_seen).getTime() < 120000;
+            return (
+              <div className="group-member" key={member.id}>
+                <Avatar profile={member} size={34} />
+                <span>
+                  <strong>{member.username}</strong>
+                  <small>
+                    {member.id === details.owner_id ? "Owner · " : ""}
+                    {online ? "Online" : "Offline"}
+                  </small>
+                </span>
+              </div>
+            );
+          })}
+        </aside>
+      </div>
+      {call && (
+        <VoiceCall
+          conversation={{ ...call.conversation, meName: profile.username }}
+          user={user}
+          requestedCallId={call.callId}
+          onClose={() => setCall(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function MessagesPage(props) {
+  const [mode, setMode] = useState(props.route?.group ? "group" : "dm");
+  useEffect(() => {
+    if (props.route?.group) setMode("group");
+  }, [props.route?.group]);
+  return mode === "group" ? (
+    <GroupMessagesPage {...props} onShowDms={() => setMode("dm")} />
+  ) : (
+    <DirectMessagesPage {...props} onShowGroups={() => setMode("group")} />
+  );
+}
