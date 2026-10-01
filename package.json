@@ -11,7 +11,7 @@
     "build:renderer": "vite build",
     "test": "node --test tests/*.test.js",
     "pack": "npm run build:renderer && electron-builder --dir",
-    "dist": "npm run build:renderer && electron-builder --win nsis portable"
+    "dist": "npm run build:renderer && electron-builder --win nsis"
   },
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^1.12.1",
@@ -44,8 +44,7 @@
     "win": {
       "icon": "assets/icon.png",
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ]
     },
     "nsis": {

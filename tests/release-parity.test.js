@@ -23,6 +23,8 @@ test("packaged app is wired to publish and consume GitHub releases", () => {
   const workflow = read(".github", "workflows", "release.yml");
   assert.equal(pkg.dependencies["electron-updater"], "6.8.9");
   assert.deepEqual(pkg.build.publish[0], { provider: "github", owner: "CptSpaceDust", repo: "CptSpaceDust-Desktop", releaseType: "release" });
+  assert.deepEqual(pkg.build.win.target, ["nsis"]);
+  assert.doesNotMatch(pkg.scripts.dist, /portable/);
   assert.match(main, /checkForUpdates/);
   assert.match(main, /quitAndInstall/);
   assert.match(workflow, /--publish never/);

@@ -35,14 +35,14 @@ jobs:
           }
           Copy-Item "dist/CptSpaceDust Community Setup $version.exe" "dist/CptSpaceDust-Community-Setup-$version.exe"
           Copy-Item "dist/CptSpaceDust Community Setup $version.exe.blockmap" "dist/CptSpaceDust-Community-Setup-$version.exe.blockmap"
-          Copy-Item "dist/CptSpaceDust Community $version.exe" "dist/CptSpaceDust-Community-$version.exe"
           $assetNames = @(gh release view $tag --json assets --jq '.assets[].name')
-          $legacyNames = @(
+          $obsoleteNames = @(
             "CptSpaceDust.Community.Setup.$version.exe",
             "CptSpaceDust.Community.Setup.$version.exe.blockmap",
-            "CptSpaceDust.Community.$version.exe"
+            "CptSpaceDust.Community.$version.exe",
+            "CptSpaceDust-Community-$version.exe"
           )
-          foreach ($assetName in $legacyNames) {
+          foreach ($assetName in $obsoleteNames) {
             if ($assetNames -contains $assetName) {
               gh release delete-asset $tag $assetName --yes
             }
@@ -50,6 +50,19 @@ jobs:
           gh release upload $tag `
             "dist/CptSpaceDust-Community-Setup-$version.exe" `
             "dist/CptSpaceDust-Community-Setup-$version.exe.blockmap" `
-            "dist/CptSpaceDust-Community-$version.exe" `
             "dist/latest.yml" `
             --clobber
+
+          # Keep the release GitHub resolves for this tag and remove any duplicate
+          # release records left behind by older concurrent publishing jobs.
+          $keeperId = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" --jq '.id'
+          $sameTagReleases = @(
+            gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" |
+              ConvertFrom-Json |
+              Where-Object { $_.tag_name -eq $tag }
+          )
+          foreach ($release in $sameTagReleases) {
+            if ([string]$release.id -ne [string]$keeperId) {
+              gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)"
+            }
+          }
