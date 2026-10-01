@@ -25,5 +25,7 @@ test("packaged app is wired to publish and consume GitHub releases", () => {
   assert.deepEqual(pkg.build.publish[0], { provider: "github", owner: "CptSpaceDust", repo: "CptSpaceDust-Desktop", releaseType: "release" });
   assert.match(main, /checkForUpdates/);
   assert.match(main, /quitAndInstall/);
-  assert.match(workflow, /--publish always/);
+  assert.match(workflow, /--publish never/);
+  assert.match(workflow, /gh release upload/);
+  assert.match(workflow, /dist\/latest\.yml/);
 });
