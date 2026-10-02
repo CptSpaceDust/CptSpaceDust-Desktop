@@ -13,14 +13,31 @@ test("desktop voice calls include screen sharing and full room controls", () => 
   assert.match(main, /setDisplayMediaRequestHandler/);
   assert.match(main, /desktopCapturer\.getSources/);
   assert.match(main, /audio: "loopback"/);
+  assert.match(main, /useSystemPicker: false/);
+  assert.match(main, /autoplay-policy", "no-user-gesture-required/);
+  assert.match(main, /backgroundThrottling: false/);
   assert.match(preload, /screen-share:list-sources/);
   assert.match(page, /setScreenShareEnabled\(true/);
-  assert.match(page, /systemAudio: "include"/);
+  assert.match(page, /publish\(false\)/);
+  assert.match(page, /<video ref=\{videoRef\} autoPlay playsInline muted/);
   assert.match(page, /RoomEvent\.ActiveSpeakersChanged/);
   assert.match(page, /RoomEvent\.AudioPlaybackStatusChanged/);
   assert.match(page, /ScreenShareTile/);
-  assert.match(page, /playCallTone\("join"\)/);
-  assert.match(page, /playCallTone\("leave"\)/);
+  assert.match(page, /playCallEventSound\("join"\)/);
+  assert.match(page, /playCallEventSound\("leave"\)/);
+});
+
+test("desktop notifications use the website sounds and ring globally", () => {
+  const app = read("src", "renderer", "App.jsx");
+  const sounds = read("src", "renderer", "lib", "sounds.js");
+  const data = read("src", "renderer", "lib", "data.js");
+  assert.match(app, /startRingtone\(\)/);
+  assert.match(app, /playNotificationSound\(\)/);
+  assert.match(app, /incoming-call-card/);
+  assert.match(sounds, /notification\.wav/);
+  assert.match(sounds, /voice-call-ringtone\.mp3/);
+  assert.match(data, /New group message in/);
+  assert.match(data, /target_user_id: targetUserId/);
 });
 
 test("sidebar branding is reduced to the website name", () => {

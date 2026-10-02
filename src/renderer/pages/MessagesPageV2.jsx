@@ -46,6 +46,7 @@ import {
   sendMessage,
 } from "../lib/data";
 import { supabase } from "../lib/supabase";
+import { playCallEventSound, startRingtone, stopRingtone } from "../lib/sounds";
 import {
   Avatar,
   Empty,
@@ -147,8 +148,15 @@ function ScreenShareTile({ item }) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !item.track) return;
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
     item.track.attach(video);
-    return () => item.track.detach(video);
+    video.play().catch(() => {});
+    return () => {
+      item.track.detach(video);
+      video.srcObject = null;
+    };
   }, [item.track]);
   return (
     <article className="call-screen-card">
@@ -163,7 +171,7 @@ function ScreenShareTile({ item }) {
           <Maximize2 />
         </button>
       </header>
-      <video ref={videoRef} autoPlay playsInline muted={item.local} />
+      <video ref={videoRef} autoPlay playsInline muted />
     </article>
   );
 }
@@ -199,8 +207,8 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
     let timer;
     async function join() {
       try {
-        playCallTone("ring");
-        ringback = setInterval(() => playCallTone("ring"), 2400);
+        startRingtone();
+        ringback = true;
         const blocked = await restrictionMessage(user.id, "calls");
         if (blocked) throw new Error(blocked);
         const isGroup = conversation.type === "group";
@@ -312,13 +320,13 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
         };
         room
           .on(RoomEvent.ParticipantConnected, () => {
-            clearInterval(ringback);
-            playCallTone("join");
+            if (ringback) stopRingtone();
+            playCallEventSound("join");
             setStatus("Voice chat connected.");
             refresh();
           })
           .on(RoomEvent.ParticipantDisconnected, () => {
-            playCallTone("leave");
+            playCallEventSound("leave");
             setStatus(
               room.remoteParticipants.size
                 ? "Voice chat connected."
@@ -366,7 +374,7 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
         });
         await room.localParticipant.setMicrophoneEnabled(true);
         if (disposed) return;
-        clearInterval(ringback);
+        stopRingtone();
         refresh();
         refreshScreens();
         setConnected(true);
@@ -375,7 +383,7 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
             ? "Voice chat connected."
             : "Connected. Waiting for other crew members…",
         );
-        playCallTone("join");
+        playCallEventSound("join");
         startedAtRef.current = Date.now();
         timer = setInterval(() => {
           const seconds = Math.floor(
@@ -411,13 +419,13 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
                 notification_type: "voice_call",
                 notification_title: "Incoming voice call",
                 notification_message: `${conversation.meName || "A crew member"} wants to call you!`,
-                notification_link: `Conversation.html?${isGroup ? "group" : "id"}=${contextId}&call=${callId}`,
+                notification_link: `Conversation.html?${isGroup ? "group" : "id"}=${encodeURIComponent(contextId)}&call=${encodeURIComponent(callId)}&caller=${encodeURIComponent(conversation.meName || "A crew member")}&caller_avatar=${encodeURIComponent(conversation.meAvatar || "")}&caller_id=${encodeURIComponent(user.id)}&conversation_title=${encodeURIComponent(callTitle)}`,
               }),
             ),
           );
         }
       } catch (error) {
-        clearInterval(ringback);
+        stopRingtone();
         setStatus(error.message || "The call could not connect.");
       }
     }
@@ -425,7 +433,7 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
     return () => {
       disposed = true;
       clearInterval(heartbeat);
-      clearInterval(ringback);
+      stopRingtone();
       clearInterval(timer);
       const room = roomRef.current;
       const wasOnlyParticipant = !room || room.remoteParticipants.size === 0;
@@ -463,19 +471,30 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
     setBusyControl("share");
     setSourceError("");
     try {
-      if (sourceId) {
-        const selected =
-          await window.desktop?.screenShare?.selectSource(sourceId);
-        if (!selected?.ok)
-          throw new Error("That screen is no longer available.");
+      const publish = async (withAudio) => {
+        if (sourceId) {
+          const selected =
+            await window.desktop?.screenShare?.selectSource(sourceId);
+          if (!selected?.ok)
+            throw new Error("That screen is no longer available.");
+        }
+        await roomRef.current.localParticipant.setScreenShareEnabled(true, {
+          audio: withAudio,
+          contentHint: "detail",
+        });
+      };
+      try {
+        await publish(true);
+      } catch (audioError) {
+        await roomRef.current.localParticipant
+          .setScreenShareEnabled(false)
+          .catch(() => {});
+        try {
+          await publish(false);
+        } catch {
+          throw audioError;
+        }
       }
-      await roomRef.current.localParticipant.setScreenShareEnabled(true, {
-        audio: true,
-        contentHint: "detail",
-        selfBrowserSurface: "exclude",
-        surfaceSwitching: "include",
-        systemAudio: "include",
-      });
       setSources(null);
       setSharing(true);
       setStatus("Your screen is being shared.");
@@ -535,7 +554,8 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
   }
 
   function leaveCall() {
-    playCallTone("leave");
+    stopRingtone();
+    playCallEventSound("leave");
     onClose();
   }
 
@@ -1195,7 +1215,11 @@ function DirectMessagesPage({
       </div>
       {call && (
         <VoiceCall
-          conversation={{ ...call.conversation, meName: profile.username }}
+          conversation={{
+            ...call.conversation,
+            meName: profile.username,
+            meAvatar: profile.avatar,
+          }}
           user={user}
           requestedCallId={call.callId}
           onClose={() => setCall(null)}
@@ -1913,7 +1937,11 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
       </div>
       {call && (
         <VoiceCall
-          conversation={{ ...call.conversation, meName: profile.username }}
+          conversation={{
+            ...call.conversation,
+            meName: profile.username,
+            meAvatar: profile.avatar,
+          }}
           user={user}
           requestedCallId={call.callId}
           onClose={() => setCall(null)}

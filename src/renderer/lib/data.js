@@ -661,7 +661,7 @@ export async function sendGroupMessage(
   content,
   replyToId = null,
 ) {
-  return unwrap(
+  const message = unwrap(
     await supabase
       .from("group_messages")
       .insert({
@@ -673,6 +673,36 @@ export async function sendGroupMessage(
       .select()
       .single(),
   );
+  const [{ data: group }, { data: memberships }, { data: sender }] =
+    await Promise.all([
+      supabase
+        .from("group_conversations")
+        .select("name")
+        .eq("id", groupId)
+        .maybeSingle(),
+      supabase
+        .from("group_members")
+        .select("user_id")
+        .eq("group_id", groupId)
+        .neq("user_id", userId),
+      supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", userId)
+        .maybeSingle(),
+    ]);
+  await Promise.allSettled(
+    (memberships || []).map(({ user_id: targetUserId }) =>
+      supabase.rpc("create_notification", {
+        target_user_id: targetUserId,
+        notification_type: "message",
+        notification_title: `New group message in ${group?.name || "your group"}`,
+        notification_message: `${sender?.username || "A member"} sent a message.`,
+        notification_link: `Conversation.html?group=${encodeURIComponent(groupId)}`,
+      }),
+    ),
+  );
+  return message;
 }
 
 export async function editGroupMessage(id, userId, content) {

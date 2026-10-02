@@ -21,13 +21,15 @@ const RENDERER_ROOT = path.join(__dirname, "..", "dist-renderer");
 const ICON_PATH = path.join(__dirname, "..", "assets", "icon.png");
 const isDevelopment = process.argv.includes("--dev");
 
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+
 let mainWindow;
 let lockStore;
 let locked = false;
 let blurTimer;
 let failedAttempts = [];
 let pendingDeepLink = "";
-const pendingDisplaySources = new Map();
+let pendingDisplaySourceId = "";
 let updateState = {
   status: "idle",
   currentVersion: app.getVersion(),
@@ -164,12 +166,24 @@ function deliverDeepLink(value) {
   mainWindow?.focus();
 }
 
+function isTrustedRendererOrigin(value) {
+  try {
+    const origin = new URL(value).origin;
+    return (
+      origin === APP_ORIGIN ||
+      (isDevelopment && origin === "http://127.0.0.1:5173")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function configurePermissions() {
   session.defaultSession.setPermissionRequestHandler(
     (webContents, permission, callback) => {
       const origin = new URL(webContents.getURL()).origin;
       callback(
-        origin === APP_ORIGIN &&
+        isTrustedRendererOrigin(origin) &&
           ["media", "display-capture", "notifications"].includes(permission),
       );
     },
@@ -177,7 +191,7 @@ function configurePermissions() {
   session.defaultSession.setPermissionCheckHandler(
     (_webContents, permission, requestingOrigin) => {
       return (
-        requestingOrigin === APP_ORIGIN &&
+        isTrustedRendererOrigin(requestingOrigin) &&
         ["media", "display-capture", "notifications"].includes(permission)
       );
     },
@@ -185,12 +199,12 @@ function configurePermissions() {
   session.defaultSession.setDisplayMediaRequestHandler(
     async (request, callback) => {
       try {
-        if (request.securityOrigin !== APP_ORIGIN) {
+        if (!isTrustedRendererOrigin(request.securityOrigin)) {
           callback({});
           return;
         }
-        const sourceId = pendingDisplaySources.get(request.frame?.processId);
-        pendingDisplaySources.delete(request.frame?.processId);
+        const sourceId = pendingDisplaySourceId;
+        pendingDisplaySourceId = "";
         if (!sourceId) {
           callback({});
           return;
@@ -214,7 +228,7 @@ function configurePermissions() {
         callback({});
       }
     },
-    { useSystemPicker: true },
+    { useSystemPicker: false },
   );
 }
 
@@ -234,6 +248,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: true,
+      backgroundThrottling: false,
     },
   });
 
@@ -275,7 +290,7 @@ function createWindow() {
 
 function setupIpc() {
   ipcMain.handle("screen-share:list-sources", async (event) => {
-    if (new URL(event.sender.getURL()).origin !== APP_ORIGIN) return [];
+    if (!isTrustedRendererOrigin(event.sender.getURL())) return [];
     const sources = await desktopCapturer.getSources({
       types: ["screen", "window"],
       thumbnailSize: { width: 360, height: 203 },
@@ -290,10 +305,9 @@ function setupIpc() {
     }));
   });
   ipcMain.handle("screen-share:select-source", (event, sourceId) => {
-    if (new URL(event.sender.getURL()).origin !== APP_ORIGIN)
-      return { ok: false };
+    if (!isTrustedRendererOrigin(event.sender.getURL())) return { ok: false };
     if (!/^(screen|window):\d+:/i.test(String(sourceId))) return { ok: false };
-    pendingDisplaySources.set(event.senderFrame.processId, String(sourceId));
+    pendingDisplaySourceId = String(sourceId);
     return { ok: true };
   });
   ipcMain.handle("app-lock:get-state", () => ({

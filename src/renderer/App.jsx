@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Bell, MessageCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Bell, MessageCircle, Phone, PhoneOff } from "lucide-react";
 import AuthScreen from "./components/AuthScreen";
 import LockScreen from "./components/LockScreen";
 import ResetPasswordScreen from "./components/ResetPasswordScreen";
@@ -7,6 +7,11 @@ import Sidebar from "./components/Sidebar";
 import AppSettings from "./components/AppSettings";
 import { getActiveRestrictions, getProfile, updatePresence } from "./lib/data";
 import { supabase } from "./lib/supabase";
+import {
+  playNotificationSound,
+  startRingtone,
+  stopRingtone,
+} from "./lib/sounds";
 import {
   CollabsPage,
   IdeasPage,
@@ -95,6 +100,9 @@ export default function App() {
   const [viewedPerson, setViewedPerson] = useState(null);
   const [messageRoute, setMessageRoute] = useState(null);
   const [unread, setUnread] = useState(0);
+  const [toast, setToast] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const incomingCallRef = useRef(null);
   useEffect(() => {
     window.desktop.appLock
       .getState()
@@ -186,6 +194,20 @@ export default function App() {
   );
   useEffect(() => window.desktop.onNavigate((value) => navigate(value)), []);
   useEffect(() => {
+    incomingCallRef.current = incomingCall;
+    if (!incomingCall) return;
+    const timeout = window.setTimeout(() => {
+      stopRingtone();
+      setIncomingCall(null);
+    }, 90000);
+    return () => window.clearTimeout(timeout);
+  }, [incomingCall]);
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+  useEffect(() => {
     if (!session?.user) return;
     const userId = session.user.id;
     supabase
@@ -199,13 +221,42 @@ export default function App() {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "notifications",
           filter: `user_id=eq.${userId}`,
         },
-        ({ new: item }) => {
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            if (payload.old?.id === incomingCallRef.current?.id) {
+              stopRingtone();
+              setIncomingCall(null);
+            }
+            return;
+          }
+          if (payload.eventType !== "INSERT") return;
+          const item = payload.new;
           setUnread((n) => n + 1);
+          let cancelledCall = false;
+          if (item.type === "voice_call") {
+            try {
+              const target = new URL(item.link || "", "https://app.local/");
+              cancelledCall = target.searchParams.get("cancelled") === "1";
+            } catch {
+              cancelledCall = false;
+            }
+          }
+          if (item.type === "voice_call" && !cancelledCall) {
+            setIncomingCall(item);
+            startRingtone();
+          } else {
+            if (cancelledCall) {
+              stopRingtone();
+              setIncomingCall(null);
+            }
+            playNotificationSound();
+            setToast(item);
+          }
           window.desktop.notify(
             item.title || "Community update",
             item.message || "You have a new notification.",
@@ -218,9 +269,49 @@ export default function App() {
   }, [session?.user?.id]);
   function navigate(value) {
     const next = parseNavigation(value);
+    if (next.page === "messages") {
+      stopRingtone();
+      setIncomingCall(null);
+    }
     setPage(next.page);
     if (next.page === "messages") setMessageRoute(next);
     if (next.page === "notifications") setUnread(0);
+  }
+  async function closeIncomingCall(open = false) {
+    const item = incomingCallRef.current;
+    stopRingtone();
+    setIncomingCall(null);
+    if (!open && item?.link) {
+      try {
+        const target = new URL(item.link, "https://app.local/");
+        const callerId = target.searchParams.get("caller_id");
+        const callId = target.searchParams.get("call");
+        if (callerId && callId && callerId !== session.user.id) {
+          target.searchParams.set("response", "declined");
+          target.searchParams.set("responder_id", session.user.id);
+          target.searchParams.set(
+            "responder_name",
+            profile?.username || "A crew member",
+          );
+          await supabase.rpc("create_notification", {
+            target_user_id: callerId,
+            notification_type: "voice_call_response",
+            notification_title: "Call declined",
+            notification_message: `${profile?.username || "A crew member"} declined your voice call.`,
+            notification_link: `${target.pathname.split("/").pop()}${target.search}`,
+          });
+        }
+      } catch {}
+    }
+    if (item?.id) {
+      await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", item.id)
+        .eq("user_id", session.user.id);
+      setUnread((count) => Math.max(0, count - 1));
+    }
+    if (open && item?.link) navigate(item.link);
   }
   async function logout() {
     await supabase.auth.signOut();
@@ -342,6 +433,53 @@ export default function App() {
         </header>
         <div className="content-shell">{content}</div>
       </main>
+      {toast && !incomingCall && (
+        <button
+          type="button"
+          className="desktop-notification-toast"
+          onClick={() => {
+            if (toast.link) navigate(toast.link);
+            setToast(null);
+          }}
+        >
+          <Bell />
+          <span>
+            <strong>{toast.title || "Community update"}</strong>
+            <small>{toast.message || "You have a new notification."}</small>
+          </span>
+        </button>
+      )}
+      {incomingCall && (
+        <section
+          className="incoming-call-card"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Incoming voice call"
+        >
+          <span className="incoming-call-pulse">
+            <Phone />
+          </span>
+          <div>
+            <small>Incoming voice call</small>
+            <strong>
+              {incomingCall.message || "A crew member wants to call you!"}
+            </strong>
+          </div>
+          <div className="incoming-call-actions">
+            <button
+              type="button"
+              className="decline"
+              onClick={() => closeIncomingCall(false)}
+              title="Dismiss call"
+            >
+              <PhoneOff />
+            </button>
+            <button type="button" onClick={() => closeIncomingCall(true)}>
+              <Phone /> Answer
+            </button>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
