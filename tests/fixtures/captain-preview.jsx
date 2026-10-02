@@ -3,8 +3,8 @@ import { createRoot } from "react-dom/client";
 import CaptainControls from "../../src/renderer/components/CaptainControls";
 import { UpdateVisual } from "../../src/renderer/components/UpdateVisual";
 import "../../src/renderer/styles.css";
-import "../../src/renderer/captain.css";
 import "../../src/renderer/captain-shared.css";
+import "../../src/renderer/captain.css";
 import "../../src/renderer/captain-desktop.css";
 
 const data = {
