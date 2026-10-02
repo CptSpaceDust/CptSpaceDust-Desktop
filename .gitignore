@@ -10,3 +10,4 @@ dist-fixed/
 *.log
 .DS_Store
 Thumbs.db
+build/UpdateAnimation.exe

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, LockKeyhole, RefreshCw, TimerReset } from "lucide-react";
 import { Field, PageHeader } from "./ui";
+import { UpdateVisual } from "./UpdateVisual";
 
 export default function AppSettings() {
   const [settings, setSettings] = useState({
@@ -155,9 +156,7 @@ export default function AppSettings() {
           <div className="update-version">
             Installed version <strong>{update.currentVersion || "—"}</strong>
           </div>
-          {update.status === "downloading" && (
-            <progress max="100" value={update.percent || 0} />
-          )}
+          {["downloading", "ready", "installing"].includes(update.status) && <UpdateVisual update={update} />}
           <p
             className={
               update.status === "error" ? "form-message" : "micro-copy"

@@ -28,6 +28,9 @@ import {
 } from "./pages/EnhancedCommunityPages";
 import MessagesPage from "./pages/MessagesPageV2";
 import NotificationsPage from "./pages/NotificationsPage";
+import { useMessageAlerts } from "./lib/messageAlerts";
+import CaptainPage from "./pages/CaptainPage";
+import UpdateOverlay from "./components/UpdateVisual";
 
 function parseNavigation(value) {
   const raw = String(value || "");
@@ -58,6 +61,7 @@ function parseNavigation(value) {
     conversation: "messages",
     notifications: "notifications",
     appsettings: "settings",
+    captainpanel: "captain",
   };
   return {
     page: map[name] || "introductions",
@@ -103,6 +107,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const incomingCallRef = useRef(null);
+  useMessageAlerts(mfaRequired ? null : session?.user?.id);
   useEffect(() => {
     window.desktop.appLock
       .getState()
@@ -237,6 +242,9 @@ export default function App() {
           if (payload.eventType !== "INSERT") return;
           const item = payload.new;
           setUnread((n) => n + 1);
+          // Per-message alerts handle chat messages, including repeated messages
+          // while the website's notification row is already unread.
+          if (item.type === "message" && /Conversation\.html/i.test(item.link || "")) return;
           let cancelledCall = false;
           if (item.type === "voice_call") {
             try {
@@ -325,6 +333,8 @@ export default function App() {
     if (!session?.user || !profile) return null;
     const props = { user: session.user, profile };
     switch (page) {
+      case "captain":
+        return <CaptainPage {...props} />;
       case "ideas":
         return <IdeasPage {...props} />;
       case "collabs":
@@ -398,6 +408,7 @@ export default function App() {
     );
   return (
     <div className="app-shell">
+      <UpdateOverlay />
       <Sidebar
         page={page}
         setPage={(id) => {

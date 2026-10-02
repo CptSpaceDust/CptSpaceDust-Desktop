@@ -1,0 +1,37 @@
+/* Desktop containment and native-form adjustments; source styling lives in captain.css. */
+.captain-page { padding: 10px 12px 40px; color: var(--captain-text); font-family: Arial, sans-serif; }
+.captain-page .calendar-container > p { text-align: center; }
+.captain-page .captain-controls { border: 0; padding: 0; margin: 0; min-width: 0; }
+.captain-page .captain-management-content[hidden] { display: none !important; }
+.captain-page .captain-management-section.open .captain-management-content { display: block; max-height: none; }
+.captain-page .captain-section { margin: 0; }
+.captain-page .captain-section h2 { font-size: 1.35rem; }
+.captain-page button, .captain-page input, .captain-page select { font: inherit; }
+.captain-page button:disabled { cursor: not-allowed; opacity: .5; }
+.captain-page select { color-scheme: dark; min-width: 0; }
+.captain-page :focus-visible { outline: 2px solid #80c3ff; outline-offset: 3px; }
+.captain-page .captain-refresh { display: block; margin: 0 auto; padding: 9px 15px; border-radius: 10px; background: #4da3ff14; border: 1px solid #4da3ff44; color: #b6d8ff; cursor: pointer; }
+.captain-page .captain-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
+.captain-page .captain-meetup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 14px; }
+.captain-page .captain-meetup-grid .meetup-request-card { margin: 0; }
+.captain-page .meetup-request-card { width: 100%; box-sizing: border-box; padding: 24px; background: linear-gradient(145deg, rgba(18,29,55,.96), rgba(8,15,32,.96)); border: 1px solid #4da3ff40; border-radius: 18px; box-shadow: 0 8px 30px #00000059; }
+.captain-page .meetup-request-card button { padding: 10px 18px; margin: 8px 0; border-radius: 10px; cursor: pointer; border: none; font-weight: bold; }
+.captain-page .meetup-request-card .approve { background: #4da3ff; color: white; }
+.captain-page .meetup-request-card .deny { background: rgba(255,80,80,.8); color: white; }
+.captain-page .trust-editor-category { margin: 15px 0; padding: 15px; background: #ffffff0a; border: 1px solid #4da3ff40; border-radius: 12px; width: 100%; }
+.captain-page .trust-editor-category h3 { margin: 0 0 12px; font-size: 1.1rem; color: #7fd1ff; text-shadow: 0 0 8px #7fd1ff80; }
+.captain-page .trusted-edit-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; margin: 8px 0; min-height: 38px; background: #00000038; border: 1px solid #ffffff1f; border-radius: 10px; transition: .2s ease; }
+.captain-page .trusted-edit-card:hover { transform: translateX(4px); border-color: #4da3ff; box-shadow: 0 0 10px #4da3ff59; }
+.captain-page .trusted-edit-card span { font-size: .95rem; overflow-wrap: anywhere; }
+.captain-page .trusted-edit-card button { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: none; cursor: pointer; font-size: 13px; background: #4da3ff26; color: white; }
+.captain-page .trusted-edit-card button:hover { background: #4da3ff80; }
+.captain-page .trusted-edit-card button:last-child { background: #ff464626; }
+.captain-page .trust-editor-category .captain-button { display: block; margin: 12px auto 0; padding: 10px 18px; border-radius: 12px; border: 1px solid #4da3ff80; background: #4da3ff26; color: white; font-size: .95rem; cursor: pointer; }
+.captain-page .captain-music-search { margin-top: 12px; }
+.captain-page .captain-search-info { display: flex; align-items: center; gap: 12px; }
+.captain-page .captain-search-info img { width: 72px; height: 48px; object-fit: cover; border-radius: 8px; }
+.captain-page .music-manager-item.selected { border-color: #73b9ff; background: #4da3ff24; }
+.captain-page .captain-review-message p, .captain-page .captain-safety-message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.captain-page .avatar { flex-shrink: 0; }
+.captain-confirm-form .captain-actions { display: flex; justify-content: flex-end; gap: 10px; }
+@media(max-width: 850px) { .captain-page { padding: 8px 0 24px; } .captain-page .captain-management-status { display: none; } .captain-page .calendar-container { padding: 24px 18px; } }

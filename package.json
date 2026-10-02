@@ -1,6 +1,6 @@
 {
   "name": "cptspacedust-desktop",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "author": "CptSpaceDust",
   "description": "A custom desktop client for the CptSpaceDust community.",
@@ -11,7 +11,8 @@
     "build:renderer": "vite build",
     "test": "node --test tests/*.test.js",
     "pack": "npm run build:renderer && electron-builder --dir",
-    "dist": "npm run build:renderer && electron-builder --win nsis"
+    "build:installer-ui": "powershell -NoProfile -NonInteractive -File build/build-installer-ui.ps1",
+    "dist": "npm run build:renderer && npm run build:installer-ui && electron-builder --win nsis"
   },
   "dependencies": {
     "@hcaptcha/react-hcaptcha": "^1.12.1",
@@ -48,6 +49,7 @@
       ]
     },
     "nsis": {
+      "include": "build/installer.nsh",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,

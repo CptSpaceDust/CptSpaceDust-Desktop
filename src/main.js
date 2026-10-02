@@ -347,8 +347,9 @@ function setupIpc() {
   ipcMain.on("desktop:notify", (_event, payload = {}) => {
     if (!Notification.isSupported()) return;
     const notification = new Notification({
-      title: String(payload.title || "CptSpaceDust Community").slice(0, 120),
-      body: String(payload.body || "").slice(0, 500),
+      title: locked ? "CptSpaceDust Community" : String(payload.title || "CptSpaceDust Community").slice(0, 120),
+      body: locked ? "Unlock CptSpaceDust to view this notification." : String(payload.body || "").slice(0, 500),
+      silent: true,
       icon: ICON_PATH,
     });
     notification.on("click", () => {
@@ -389,7 +390,11 @@ function setupIpc() {
   ipcMain.handle("updater:install", () => {
     if (updateState.status !== "ready")
       return { ok: false, error: "No downloaded update is ready." };
-    setImmediate(() => autoUpdater.quitAndInstall(false, true));
+    sendUpdateState({ status: "installing", message: "Restarting to install your update…" });
+    setTimeout(() => {
+      try { autoUpdater.quitAndInstall(true, true); }
+      catch (error) { sendUpdateState({ status: "error", message: error.message || "The update could not start." }); }
+    }, 650);
     return { ok: true };
   });
 }

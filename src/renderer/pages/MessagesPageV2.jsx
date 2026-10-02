@@ -21,6 +21,10 @@ import {
   X,
 } from "lucide-react";
 import EditMessageButton from "../components/EditMessageButton";
+import MessageComposer, {
+  FormattedMessage,
+  MessageNotices,
+} from "../components/MessageComposer";
 import { Room, RoomEvent, Track } from "livekit-client";
 import {
   changeGroupAvatar,
@@ -56,24 +60,6 @@ import {
   Modal,
   PageHeader,
 } from "../components/ui";
-
-function FormattedMessage({ children }) {
-  return (
-    <>
-      {String(children || "")
-        .split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
-        .map((part, index) =>
-          part.startsWith("**") && part.endsWith("**") ? (
-            <strong key={index}>{part.slice(2, -2)}</strong>
-          ) : part.startsWith("*") && part.endsWith("*") ? (
-            <em key={index}>{part.slice(1, -1)}</em>
-          ) : (
-            part
-          ),
-        )}
-    </>
-  );
-}
 
 let callAudioContext;
 
@@ -985,10 +971,12 @@ function DirectMessagesPage({
     const input = e.currentTarget.elements.message;
     const content = input.value.trim();
     if (!content || !selected) return;
-    const blocked = await restrictionMessage(user.id, "messaging");
-    if (blocked) return setNotice(blocked);
     try {
-      input.value = "";
+      const blocked = await restrictionMessage(user.id, "messaging");
+      if (blocked) {
+        setNotice(blocked);
+        return false;
+      }
       await sendMessage(
         selected.id,
         user.id,
@@ -999,6 +987,7 @@ function DirectMessagesPage({
       setReplying(null);
     } catch (x) {
       setNotice(x.message);
+      return false;
     }
   }
   async function remove(item) {
@@ -1193,17 +1182,14 @@ function DirectMessagesPage({
                   </button>
                 </div>
               )}
-              <form className="composer" onSubmit={send}>
-                <textarea
-                  name="message"
-                  rows="1"
-                  maxLength="900"
-                  placeholder={`Message ${selected.person?.username || "crew member"}`}
-                />
-                <button className="send-button">
-                  <Send />
-                </button>
-              </form>
+              <MessageComposer
+                key={selected.id}
+                id={selected.id}
+                user={user}
+                people={[selected.person]}
+                placeholder={`Message ${selected.person?.username || "crew member"}`}
+                onSend={send}
+              />
             </>
           ) : (
             <Empty
@@ -1530,6 +1516,11 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
   const [replying, setReplying] = useState(null);
   const [call, setCall] = useState(null);
   const endRef = useRef();
+  useEffect(() => {
+    if (!route?.group) return;
+    const found = groups.find((item) => item.id === route.group);
+    if (found) setSelected(found);
+  }, [route?.group, groups.length]);
   async function loadGroups(targetId) {
     try {
       const rows = await getGroupConversations(user.id);
@@ -1643,7 +1634,6 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
     try {
       const blocked = await restrictionMessage(user.id, "messaging");
       if (blocked) throw new Error(blocked);
-      input.value = "";
       await sendGroupMessage(
         selected.id,
         user.id,
@@ -1653,6 +1643,7 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
       setReplying(null);
     } catch (exception) {
       setNotice(exception.message);
+      return false;
     }
   }
   async function remove(item) {
@@ -1895,17 +1886,15 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                   </button>
                 </div>
               )}
-              <form className="composer" onSubmit={send}>
-                <textarea
-                  name="message"
-                  rows="1"
-                  maxLength="900"
-                  placeholder={`Message ${details.name}`}
-                />
-                <button className="send-button">
-                  <Send />
-                </button>
-              </form>
+              <MessageComposer
+                key={selected.id}
+                id={selected.id}
+                group
+                user={user}
+                people={details.members}
+                placeholder={`Message ${details.name}`}
+                onSend={send}
+              />
             </>
           ) : (
             <Empty
@@ -1955,10 +1944,16 @@ export default function MessagesPage(props) {
   const [mode, setMode] = useState(props.route?.group ? "group" : "dm");
   useEffect(() => {
     if (props.route?.group) setMode("group");
-  }, [props.route?.group]);
-  return mode === "group" ? (
-    <GroupMessagesPage {...props} onShowDms={() => setMode("dm")} />
-  ) : (
-    <DirectMessagesPage {...props} onShowGroups={() => setMode("group")} />
+    else if (props.route?.conversation) setMode("dm");
+  }, [props.route?.group, props.route?.conversation]);
+  return (
+    <>
+      <MessageNotices />
+      {mode === "group" ? (
+        <GroupMessagesPage {...props} onShowDms={() => setMode("dm")} />
+      ) : (
+        <DirectMessagesPage {...props} onShowGroups={() => setMode("group")} />
+      )}
+    </>
   );
 }

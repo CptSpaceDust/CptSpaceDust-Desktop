@@ -1,0 +1,121 @@
+.captain-page .captain-nav-item a { color:#7fd1ff; }
+ .captain-page .captain-nav-item a:hover { box-shadow: 0 0 18px rgba(77,163,255,0.65); }
+ @media(max-width:768px) { }
+ .captain-page #captain-controls { margin-top: 35px; padding: 25px; background: rgba(77,163,255,0.08); border: 1px solid rgba(77,163,255,0.7); border-radius: 18px; box-shadow: 0 0 25px rgba(77,163,255,0.35); backdrop-filter: blur(12px); animation: captainGlow 3s infinite alternate; }
+ .captain-page #captain-controls h2 { color: #4da3ff; text-align: center; margin-bottom: 20px; text-shadow: 0 0 12px rgba(77,163,255,0.8); }
+ .captain-page #captain-controls h3 { margin-top: 25px; color: white; border-bottom: 1px solid rgba(77,163,255,0.4); padding-bottom: 8px; }
+ .captain-page #captain-message { margin-top: 15px; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); text-align: center; }
+ .captain-page #captain-controls h3 { margin-top: 25px; margin-bottom: 10px; }
+ .captain-page #captain-controls .btn { margin-top: 10px; }
+ .captain-page .captain-status { margin: 20px auto; padding: 15px; max-width: 700px; text-align: center; background: rgba(77,163,255,0.15); border: 1px solid rgba(77,163,255,0.5); border-radius: 15px; font-weight: bold; }
+ .captain-page .captain-section { margin-top: 30px; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); }
+ .captain-page .captain-nav-item { display:flex; align-items:center; }
+ .captain-page .captain-nav-item a { display:flex; align-items:center; justify-content:center; height:100%; padding:10px 15px; }
+ .captain-page #captain-nav-item { display:flex; align-items:center; height:100%; }
+ .captain-page #captain-nav-item a { display:flex; align-items:center; justify-content:center; padding:0 15px; height:100%; line-height:1; }
+ .captain-page #captain-link { display:flex; align-items:center; }
+ .captain-page .captain-nav-item { display:flex; align-items:center; }
+ .captain-page .captain-nav-item .dropdown-button { display:flex; align-items:center; justify-content:center; margin:0; }
+ .captain-page .trust-editor-category .captain-button{ margin-top: 10px; padding: 8px 15px; font-size: 0.9rem; width:auto; }
+ .captain-page .trust-editor-category .captain-button{ display:block; margin: 12px auto 0 auto; padding: 10px 18px; border-radius: 12px; border: 1px solid rgba(77,163,255,0.5); background: rgba(77,163,255,0.15); color:white; font-size: 0.95rem; cursor:pointer; transition: 0.25s ease; }
+ .captain-page .trust-editor-category .captain-button:hover{ transform: translateY(-3px); background: rgba(77,163,255,0.35); border-color: #7fd1ff; box-shadow: 0 0 15px rgba(77,163,255,0.55); }
+ .captain-page .captain-section{ max-width:650px; margin-left:auto; margin-right:auto; }
+ .captain-page .captain-section hr{ max-width:650px; }
+ .captain-page .captain-conversation-layout { display: grid; grid-template-columns: minmax(240px, 35%) 1fr; gap: 16px; min-height: 300px; }
+ .captain-page .captain-conversation-list { max-height: 510px; overflow: auto; }
+ .captain-page .captain-conversation-messages { max-height: 510px; overflow: auto; padding: 15px; border: 1px solid rgba(77,163,255,.25); border-radius: 16px; background: rgba(8,20,44,.45); }
+ .captain-page .captain-conversation-choice { width: 100%; display: flex; align-items: center; gap: 7px; text-align: left; color: white; background: rgba(77,163,255,.08); border: 1px solid rgba(77,163,255,.22); border-radius: 12px; margin-bottom: 8px; padding: 10px; cursor: pointer; }
+ .captain-page .captain-conversation-choice img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+ .captain-page .captain-review-message { padding: 10px 13px; margin: 9px 0; border-radius: 12px; background: rgba(77,163,255,.1); color: #eaf4ff; }
+ .captain-page .captain-review-message small { display: block; opacity: .65; margin-bottom: 5px; }
+ @media(max-width:700px) { .captain-page .captain-conversation-layout { grid-template-columns: 1fr; }
+ }
+ .captain-page .captain-conversation-layout { grid-template-columns: minmax(265px, 35%) minmax(0, 1fr); gap: 18px; }
+ .captain-page .captain-conversation-list { max-height: 620px; min-width: 0; overflow-y: auto; padding: 6px; border: 1px solid rgba(77,163,255,.2); border-radius: 16px; background: rgba(8,20,44,.32); }
+ .captain-page .captain-conversation-heading { margin: 12px 8px 10px; color: #a9d7ff; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; }
+ .captain-page .captain-conversation-empty { margin: 10px; color: #aabbd0; font-size: .84rem; }
+ .captain-page .captain-conversation-choice { min-width: 0; gap: 12px; padding: 12px; margin-bottom: 8px; transition: background .18s, border-color .18s, box-shadow .18s; }
+ .captain-page .captain-conversation-choice:hover, .captain-page .captain-conversation-choice.selected { background: rgba(77,163,255,.18); border-color: rgba(112,188,255,.65); box-shadow: inset 3px 0 #76c3ff; }
+ .captain-page .captain-conversation-avatars { display: flex; flex: 0 0 auto; align-items: center; }
+ .captain-page .captain-conversation-choice .captain-conversation-avatars img { width: 36px; height: 36px; border: 2px solid #142743; }
+ .captain-page .captain-conversation-avatars img + img { margin-left: -11px; }
+ .captain-page .captain-conversation-choice-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+ .captain-page .captain-conversation-choice-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .85rem; }
+ .captain-page .captain-conversation-choice-copy small { color: #abc2da; font-size: .7rem; }
+ .captain-page .captain-conversation-type { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: rgba(77,163,255,.16); color: #aad8ff; font-size: .67rem; font-weight: 700; }
+ .captain-page .captain-conversation-messages { max-height: 620px; min-width: 0; padding: 0 18px 18px; }
+ .captain-page .captain-review-header { position: sticky; z-index: 1; top: 0; margin: 0 -18px 16px; padding: 18px; border-bottom: 1px solid rgba(112,188,255,.22); background: rgba(10,24,48,.97); backdrop-filter: blur(12px); }
+ .captain-page .captain-review-header h3 { margin: 0 0 5px; color: white; font-size: 1.1rem; overflow-wrap: anywhere; }
+ .captain-page .captain-review-header p { margin: 0 0 12px; color: #a9bfd8; font-size: .72rem; overflow-wrap: anywhere; }
+ .captain-page .captain-review-participants { display: flex; flex-wrap: wrap; gap: 7px; }
+ .captain-page .captain-review-person { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 9px 4px 4px; border: 1px solid rgba(112,188,255,.23); border-radius: 999px; color: #dceeff; background: rgba(77,163,255,.09); font-size: .75rem; overflow-wrap: anywhere; }
+ .captain-page .captain-review-person img { width: 23px; height: 23px; border-radius: 50%; object-fit: cover; }
+ .captain-page .captain-review-message { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0; padding: 12px; border: 1px solid rgba(112,188,255,.14); border-left: 3px solid var(--sender-color); border-radius: 12px; background: rgba(255,255,255,.045); }
+ .captain-page .captain-review-message > img { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+ .captain-page .captain-review-message-body { min-width: 0; flex: 1; }
+ .captain-page .captain-review-message-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 5px; }
+ .captain-page .captain-review-message-meta strong { color: var(--sender-color); font-size: .82rem; }
+ .captain-page .captain-review-message-meta time { color: #a6b5ca; font-size: .71rem; }
+ .captain-page .captain-review-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; font-size: .86rem; }
+ .captain-page .captain-review-reply { display: grid; gap: 3px; margin: 2px 0 8px; padding: 7px 9px; border-left: 2px solid var(--sender-color); border-radius: 0 7px 7px 0; background: rgba(0,0,0,.18); color: #bdd0e5; font-size: .75rem; }
+ .captain-page .captain-review-reply strong { color: var(--sender-color); }
+ .captain-page .captain-review-reply span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+ .captain-page .captain-review-empty { color: #aabbd0; text-align: center; padding: 30px 10px; }
+ @media(max-width:700px) { .captain-page .captain-conversation-layout { grid-template-columns: 1fr; }
+ .captain-page .captain-conversation-list { max-height: 280px; }
+ .captain-page .captain-conversation-messages { max-height: 600px; }
+ }
+ .captain-page .captain-safety-review { margin-bottom: 18px; overflow: hidden; border: 1px solid rgba(255,145,112,.3); border-radius: 17px; background: linear-gradient(145deg, rgba(55,24,36,.55), rgba(8,20,44,.62)); box-shadow: inset 0 1px rgba(255,255,255,.04); }
+ .captain-page .captain-safety-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 18px 19px 13px; background: linear-gradient(100deg, rgba(255,113,99,.13), transparent 70%); }
+ .captain-page .captain-safety-heading h3 { margin: 0 0 5px; color: #fff0ed; font-size: 1.05rem; }
+ .captain-page .captain-safety-heading h3 span { color: #ffb39f; }
+ .captain-page .captain-safety-heading p, .captain-page .captain-safety-note { margin: 0; color: #cdbbc3; font-size: .78rem; line-height: 1.5; }
+ .captain-page .captain-safety-heading label { display: grid; flex: 0 0 auto; gap: 5px; color: #e7d6dc; font-size: .75rem; }
+ .captain-page .captain-safety-heading select { min-width: 140px; padding: 8px 10px; border: 1px solid rgba(255,153,133,.34); border-radius: 9px; background: #182841; color: white; }
+ .captain-page .captain-safety-note { margin: 0 19px 12px; padding: 9px 11px; border-left: 2px solid rgba(255,184,130,.58); border-radius: 0 8px 8px 0; background: rgba(255,177,117,.065); }
+ .captain-page .captain-safety-flags { display: grid; gap: 10px; max-height: 430px; overflow-y: auto; padding: 0 18px 18px; color: #cbd6e5; font-size: .84rem; }
+ .captain-page .captain-safety-card { padding: 14px; border: 1px solid rgba(255,144,125,.24); border-radius: 13px; background: rgba(255,255,255,.045); }
+ .captain-page .captain-safety-card.reviewed { border-color: rgba(113,191,255,.2); opacity: .72; }
+ .captain-page .captain-safety-card-header { display: flex; align-items: center; gap: 10px; }
+ .captain-page .captain-safety-card-header img { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: #10243d; }
+ .captain-page .captain-safety-card-title { display: grid; min-width: 0; flex: 1; gap: 3px; }
+ .captain-page .captain-safety-card-title strong { color: white; overflow-wrap: anywhere; }
+ .captain-page .captain-safety-card-title small { color: #aebdd0; overflow-wrap: anywhere; }
+ .captain-page .captain-safety-kind { flex: 0 0 auto; padding: 4px 8px; border-radius: 999px; background: rgba(255,128,104,.14); color: #ffc1b3; font-size: .67rem; font-weight: 800; text-transform: uppercase; }
+ .captain-page .captain-safety-categories { display: flex; flex-wrap: wrap; gap: 6px; margin: 11px 0 9px; }
+ .captain-page .captain-safety-category { padding: 4px 8px; border: 1px solid rgba(255,151,120,.27); border-radius: 999px; background: rgba(129,45,48,.2); color: #ffd1c7; font-size: .68rem; font-weight: 700; }
+ .captain-page .captain-safety-message { margin: 0 0 10px; padding: 10px 11px; border-left: 3px solid #ec8c77; border-radius: 0 9px 9px 0; background: rgba(2,9,21,.38); color: #edf5ff; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.48; }
+ .captain-page .captain-safety-meta { display: grid; gap: 3px; color: #aabbd0; font-size: .72rem; overflow-wrap: anywhere; }
+ .captain-page .captain-safety-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+ .captain-page .captain-safety-actions button { padding: 7px 10px; border: 1px solid rgba(111,190,255,.34); border-radius: 8px; background: rgba(77,163,255,.11); color: #e7f5ff; cursor: pointer; }
+ .captain-page .captain-safety-actions button:hover { background: rgba(77,163,255,.23); }
+ .captain-page .captain-safety-actions .captain-safety-review-button { border-color: rgba(111,222,169,.31); background: rgba(64,171,121,.12); color: #c7f7dd; }
+ .captain-page .captain-safety-empty { padding: 25px 12px; color: #b9c6d6; text-align: center; }
+ @media(max-width:700px) { .captain-page .captain-safety-heading { flex-direction: column; }
+ .captain-page .captain-safety-heading label, .captain-page .captain-safety-heading select { width: 100%; }
+ }
+ .captain-page .captain-moderation-form { display: flex; flex-wrap: wrap; gap: 12px; padding: 16px; color: white; }
+ .captain-page .captain-moderation-form label { display: grid; gap: 5px; }
+ .captain-page .captain-moderation-form select, .captain-page .captain-moderation-form button { padding: 10px; border-radius: 9px; border: 1px solid rgba(77,163,255,.35); background: #102743; color: white; }
+ .captain-page .captain-moderation-form button { cursor: pointer; align-self: end; }
+ .captain-page #moderation-result, .captain-page #moderation-active { width: 100%; }
+ .captain-page .captain-moderation-form .captain-moderation-danger, .captain-page .captain-moderation-form #moderation-permanent-ban { border-color: rgba(255,140,140,.42); color: #ffd1d1; background: rgba(126,37,55,.2); }
+ .captain-page .captain-moderation-form .captain-moderation-danger:hover, .captain-page .captain-moderation-form #moderation-permanent-ban:hover { background: rgba(165,55,72,.3); }
+ .captain-page .captain-moderation-selected { margin: 0; color: #b6d4ec; font-size: .82rem; }
+ .captain-page .captain-moderation-overview { margin: 0 16px 18px; border: 1px solid rgba(77,163,255,.24); border-radius: 16px; background: rgba(7,19,39,.55); overflow: hidden; }
+ .captain-page .captain-moderation-overview-heading { padding: 16px 18px 12px; background: linear-gradient(100deg, rgba(77,163,255,.13), transparent); }
+ .captain-page .captain-moderation-overview-heading h3 { margin: 0 0 4px; color: #e6f4ff; font-size: 1rem; }
+ .captain-page .captain-moderation-overview-heading h3 span { color: #8bc9ff; }
+ .captain-page .captain-moderation-overview-heading p { margin: 0; color: #aac1da; font-size: .78rem; }
+ .captain-page .captain-moderation-permanent-heading { border-top: 1px solid rgba(77,163,255,.19); }
+ .captain-page .captain-moderation-action-list { display: grid; gap: 9px; padding: 10px 18px 18px; color: #b9cee3; font-size: .84rem; }
+ .captain-page .captain-moderation-action-card { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid rgba(112,188,255,.19); border-radius: 11px; background: rgba(255,255,255,.045); }
+ .captain-page .captain-moderation-action-card > div { display: grid; min-width: 0; gap: 3px; }
+ .captain-page .captain-moderation-action-card strong { color: white; overflow-wrap: anywhere; }
+ .captain-page .captain-moderation-action-card small { color: #aabdd4; overflow-wrap: anywhere; }
+ .captain-page .captain-moderation-action-name { color: #85c6ff; font-size: .78rem; }
+ .captain-page .captain-moderation-action-card button { flex: 0 0 auto; padding: 8px 12px; border: 1px solid rgba(112,188,255,.35); border-radius: 8px; background: rgba(77,163,255,.12); color: #e2f2ff; cursor: pointer; }
+ .captain-page .captain-moderation-action-card button:hover { background: rgba(77,163,255,.26); }
+ .captain-page .captain-moderation-action-card button:disabled { opacity: .45; cursor: not-allowed; }
+ .captain-page .captain-conversation-heading { margin: 12px 5px 9px; color: #9bcfff; font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+ .captain-page .captain-conversation-empty { padding: 8px; color: #a5b9d3; font-size: .8rem; }
