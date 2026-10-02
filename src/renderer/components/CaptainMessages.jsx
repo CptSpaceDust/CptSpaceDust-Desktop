@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { read, requireCaptain } from "../lib/captain";
 import { Avatar, Loading } from "./ui";
-import { FormattedMessage } from "./MessageComposer";
+import { FormattedMessage, MessageReplyQuote } from "./MessageComposer";
 
-export default function CaptainMessages({ data, user, run, onNotice }) {
+export default function CaptainMessages({
+  data,
+  user,
+  run,
+  refreshVersion = 0,
+}) {
   const [filter, setFilter] = useState("open");
   const [review, setReview] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -42,7 +47,7 @@ export default function CaptainMessages({ data, user, run, onNotice }) {
         const rows = await read(
           supabase
             .from(review.group ? "group_messages" : "dm_messages")
-            .select("id,sender_id,content,created_at,reply_to_id")
+            .select("id,sender_id,content,created_at,reply_to_id,is_reply")
             .eq(review.group ? "group_id" : "conversation_id", review.id)
             .order("created_at", { ascending: true })
             .limit(500),
@@ -88,7 +93,7 @@ export default function CaptainMessages({ data, user, run, onNotice }) {
       live = false;
       supabase.removeChannel(channel);
     };
-  }, [review?.id, review?.group]);
+  }, [review?.id, review?.group, refreshVersion]);
   function open(id, group) {
     setReview({ id, group });
     requestAnimationFrame(() =>
@@ -288,13 +293,12 @@ export default function CaptainMessages({ data, user, run, onNotice }) {
                           {new Date(message.created_at).toLocaleString()}
                         </time>
                       </div>
-                      {message.reply_to_id && (
-                        <blockquote className="captain-review-reply">
-                          {messages.find(
-                            (item) => item.id === message.reply_to_id,
-                          )?.content || "Original message unavailable"}
-                        </blockquote>
-                      )}
+                      <MessageReplyQuote
+                        message={message}
+                        messages={messages}
+                        people={data.crew || []}
+                        className="captain-review-reply"
+                      />
                       <p>
                         <FormattedMessage>{message.content}</FormattedMessage>
                       </p>

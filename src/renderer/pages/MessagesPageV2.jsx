@@ -24,6 +24,7 @@ import EditMessageButton from "../components/EditMessageButton";
 import MessageComposer, {
   FormattedMessage,
   MessageNotices,
+  MessageReplyQuote,
 } from "../components/MessageComposer";
 import { Room, RoomEvent, Track } from "livekit-client";
 import {
@@ -1125,7 +1126,11 @@ function DirectMessagesPage({
                       tabIndex={0}
                       key={item.id}
                     >
-                      {quoted && <blockquote>{quoted.content}</blockquote>}
+                      <MessageReplyQuote
+                        message={item}
+                        messages={messages}
+                        people={[profile, selected.person]}
+                      />
                       <p>
                         <FormattedMessage>{item.content}</FormattedMessage>
                       </p>
@@ -1176,7 +1181,10 @@ function DirectMessagesPage({
               </div>
               {replying && (
                 <div className="reply-bar">
-                  <span>Replying to: {replying.content}</span>
+                  <span>
+                    Replying to:{" "}
+                    <FormattedMessage>{replying.content}</FormattedMessage>
+                  </span>
                   <button onClick={() => setReplying(null)}>
                     <X />
                   </button>
@@ -1823,7 +1831,11 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                           {sender?.username || "Former member"}
                         </small>
                       )}
-                      {quoted && <blockquote>{quoted.content}</blockquote>}
+                      <MessageReplyQuote
+                        message={item}
+                        messages={messages}
+                        people={Object.values(profiles)}
+                      />
                       <p>
                         <FormattedMessage>{item.content}</FormattedMessage>
                       </p>
@@ -1880,7 +1892,10 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
               </div>
               {replying && (
                 <div className="reply-bar">
-                  <span>Replying to: {replying.content}</span>
+                  <span>
+                    Replying to:{" "}
+                    <FormattedMessage>{replying.content}</FormattedMessage>
+                  </span>
                   <button onClick={() => setReplying(null)}>
                     <X />
                   </button>

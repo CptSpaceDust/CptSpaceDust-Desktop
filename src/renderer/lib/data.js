@@ -305,6 +305,19 @@ export async function getMeetups() {
 }
 
 export async function createMeetup(userId, fields) {
+  if (!fields.meetup_date) throw new Error("Please select an available day.");
+  const occupied = unwrap(
+    await supabase
+      .from("meetup_requests")
+      .select("id")
+      .eq("meetup_date", fields.meetup_date)
+      .eq("status", "approved")
+      .limit(1),
+  );
+  if (occupied.length)
+    throw new Error(
+      "That day is already occupied. Please choose another date.",
+    );
   const duplicate = unwrap(
     await supabase
       .from("meetup_requests")

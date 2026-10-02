@@ -58,7 +58,7 @@ test("website message formatting preserves whitespace and safely escapes HTML", 
   const format = (text) =>
     renderToStaticMarkup(
       React.createElement(module.exports.FormattedMessage, null, text),
-    );
+    ).replace(/^<span class="formatted-message">|<\/span>$/g, "");
   assert.equal(
     format("*italic* ||bold|| **both**"),
     "<em>italic</em> <strong>bold</strong> <strong><em>both</em></strong>",
@@ -70,4 +70,22 @@ test("website message formatting preserves whitespace and safely escapes HTML", 
   );
   assert.equal(format("*unfinished"), "*unfinished");
   assert.equal(format("**first\nsecond**"), "**first\nsecond**");
+  const quote = (message, messages = []) =>
+    renderToStaticMarkup(
+      React.createElement(module.exports.MessageReplyQuote, {
+        message,
+        messages,
+        people: [{ id: "nova", username: "Nova" }],
+      }),
+    );
+  assert.equal(quote({}), "");
+  assert.match(
+    quote({ is_reply: true }),
+    /Original message unavailable.*Deleted or expired/,
+  );
+  const reply = quote({ reply_to_id: "original" }, [
+    { id: "original", sender_id: "nova", content: "||Hello||" },
+  ]);
+  assert.match(reply, /Replying to Nova/);
+  assert.match(reply, /<strong>Hello<\/strong>/);
 });

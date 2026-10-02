@@ -13,6 +13,9 @@ export default function CaptainPage({ user, profile }) {
   const [notice, setNotice] = useState("");
   const [data, setData] = useState({});
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const refreshingRef = useRef(false);
   const generation = useRef(0);
   const working = useRef(false);
   const load = useCallback(async () => {
@@ -92,7 +95,9 @@ export default function CaptainPage({ user, profile }) {
       if (token !== generation.current) return;
       setData(next);
       setAuthorized(true);
+      setRefreshVersion((value) => value + 1);
       if (failures.length) setNotice(failures.join(" · "));
+      return failures.length === 0;
     } catch (error) {
       if (token === generation.current) {
         setAuthorized(false);
@@ -103,6 +108,19 @@ export default function CaptainPage({ user, profile }) {
       if (token === generation.current) setLoading(false);
     }
   }, [user.id]);
+  async function refresh() {
+    if (refreshingRef.current || working.current) return;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    setNotice("Refreshing captain panel…");
+    try {
+      if (await load())
+        setNotice(`Panel refreshed at ${new Date().toLocaleTimeString()}.`);
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }
   useEffect(() => {
     load();
     let refreshTimer;
@@ -182,7 +200,9 @@ export default function CaptainPage({ user, profile }) {
       busy={busy}
       onNotice={setNotice}
       notice={notice}
-      onRefresh={load}
+      onRefresh={refresh}
+      refreshing={refreshing}
+      refreshVersion={refreshVersion}
     />
   );
 }

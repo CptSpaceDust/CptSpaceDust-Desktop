@@ -26,7 +26,35 @@ export function FormattedMessage({ children }) {
     cursor = match.index + match[0].length;
   }
   parts.push(source.slice(cursor));
-  return <>{parts}</>;
+  return <span className="formatted-message">{parts}</span>;
+}
+
+export function MessageReplyQuote({
+  message,
+  messages,
+  people,
+  className = "message-reply-quote",
+}) {
+  if (!message.is_reply && !message.reply_to_id) return null;
+  const original = messages.find((item) => item.id === message.reply_to_id);
+  const author =
+    original && people.find((person) => person.id === original.sender_id);
+  return (
+    <blockquote className={className}>
+      <strong>
+        {original
+          ? `Replying to ${author?.username || "Former member"}`
+          : "Original message unavailable"}
+      </strong>
+      <span>
+        {original ? (
+          <FormattedMessage>{original.content}</FormattedMessage>
+        ) : (
+          "Deleted or expired"
+        )}
+      </span>
+    </blockquote>
+  );
 }
 
 export function MessageNotices() {

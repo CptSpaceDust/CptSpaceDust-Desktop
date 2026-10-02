@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  ArrowDown,
   Cake,
   ChevronLeft,
   ChevronRight,
@@ -377,9 +378,34 @@ export function MeetupsPage({ user, profile }) {
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
   const [selected, setSelected] = useState(null);
+  const [showFormHint, setShowFormHint] = useState(false);
+  const formHeadingRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const approved = (data || []).filter((item) => item.status === "approved");
+  useEffect(() => {
+    if (!selected || loading || !formHeadingRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setShowFormHint(false);
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(formHeadingRef.current);
+    return () => observer.disconnect();
+  }, [selected, loading]);
+  useEffect(() => {
+    if (
+      selected &&
+      data?.some(
+        (item) => item.status === "approved" && item.meetup_date === selected,
+      )
+    ) {
+      setSelected(null);
+      setShowFormHint(false);
+      setMessage("That day is now occupied. Please choose another date.");
+    }
+  }, [data, selected]);
   const mine = (data || []).filter((item) => item.user_id === user.id);
   const firstDay = currentMonth.getDay();
   const days = new Date(
@@ -399,6 +425,8 @@ export function MeetupsPage({ user, profile }) {
     setMessage("");
     const form = new FormData(event.currentTarget);
     try {
+      if (!selected || approved.some((item) => item.meetup_date === selected))
+        throw new Error("Please select an available day.");
       const blocked = await restrictionMessage(user.id, "meetups");
       if (blocked) throw new Error(blocked);
       const result = await createMeetup(user.id, {
@@ -522,22 +550,51 @@ export function MeetupsPage({ user, profile }) {
                 return (
                   <button
                     key={key}
-                    disabled={past && !meetup}
+                    disabled={past || Boolean(meetup)}
+                    aria-label={`${key}${meetup ? ": Occupied" : past ? ": Unavailable" : ": Available"}`}
                     title={
                       meetup
-                        ? `Scheduled meetup: ${meetup.meetup_type || "VRChat"}`
+                        ? `Occupied — ${meetup.meetup_type || "VRChat meetup"}`
                         : ""
                     }
                     className={`calendar-day ${meetup ? "scheduled" : ""} ${selected === key ? "selected" : ""}`}
-                    onClick={() => !meetup && setSelected(key)}
+                    onClick={() => {
+                      if (!meetup && !past) {
+                        setSelected(key);
+                        setShowFormHint(true);
+                      }
+                    }}
                   >
                     <strong>{day}</strong>
-                    {meetup && <span>{meetup.meetup_type || "Meetup"}</span>}
+                    {meetup && <span>Occupied</span>}
                   </button>
                 );
               })}
             </div>
+            <p className="calendar-legend">
+              Occupied days already have an approved meetup and cannot be
+              selected.
+            </p>
           </section>
+          {selected && showFormHint && (
+            <button
+              type="button"
+              className="meetup-form-hint"
+              onClick={() => {
+                formHeadingRef.current?.scrollIntoView({
+                  behavior: window.matchMedia(
+                    "(prefers-reduced-motion: reduce)",
+                  ).matches
+                    ? "auto"
+                    : "smooth",
+                  block: "start",
+                });
+              }}
+            >
+              <ArrowDown />
+              <span>Scroll down to finish your meetup request</span>
+            </button>
+          )}
           <section className="my-meetups-section">
             <h2 className="section-title">My Meetup Requests</h2>
             {mine.length ? (
@@ -605,7 +662,7 @@ export function MeetupsPage({ user, profile }) {
           </section>
           {selected && (
             <form className="panel meetup-request-form" onSubmit={submit}>
-              <div className="meetup-form-heading">
+              <div className="meetup-form-heading" ref={formHeadingRef}>
                 <span>🚀</span>
                 <div>
                   <h2>Request Meetup</h2>

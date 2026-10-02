@@ -74,6 +74,8 @@ export default function CaptainControls({
   onNotice,
   notice,
   onRefresh,
+  refreshing = false,
+  refreshVersion = 0,
 }) {
   const [question, setQuestion] = useState(null);
   const resolver = useRef(null);
@@ -113,7 +115,7 @@ export default function CaptainControls({
   }
   useEffect(() => {
     loadBans();
-  }, []);
+  }, [refreshVersion]);
   async function removeAccount(mode) {
     if (!target || target === user.id) return;
     const username = name(target);
@@ -187,17 +189,15 @@ export default function CaptainControls({
     if (!value) return;
     await changeFriend(() =>
       read(
-        supabase
-          .from("trusted_friends")
-          .insert({
-            name: value,
-            category,
-            position:
-              Math.max(
-                0,
-                ...(data.friends || []).map((item) => item.position || 0),
-              ) + 1,
-          }),
+        supabase.from("trusted_friends").insert({
+          name: value,
+          category,
+          position:
+            Math.max(
+              0,
+              ...(data.friends || []).map((item) => item.position || 0),
+            ) + 1,
+        }),
       ),
     );
   }
@@ -251,8 +251,14 @@ export default function CaptainControls({
         <div className="captain-status" role="status">
           {notice || "Captain access confirmed. Welcome to the control center."}
         </div>
-        <button className="captain-refresh" onClick={onRefresh} disabled={busy}>
-          ↻ Refresh panel
+        <button
+          type="button"
+          className="captain-refresh"
+          onClick={onRefresh}
+          disabled={busy || refreshing}
+          aria-busy={refreshing}
+        >
+          {refreshing ? "↻ Refreshing…" : "↻ Refresh panel"}
         </button>
       </section>
       <fieldset className="captain-controls" disabled={busy}>
@@ -415,6 +421,7 @@ export default function CaptainControls({
           description="Review a conversation when a crew member opens a Discord ticket."
         >
           <CaptainMessages
+            refreshVersion={refreshVersion}
             data={data}
             user={user}
             run={run}

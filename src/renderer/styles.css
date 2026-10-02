@@ -188,8 +188,11 @@ p {
   text-align: center;
 }
 .sidebar-footer {
-  border-top: 1px solid var(--line);
-  padding-top: 13px;
+  border: 1px solid rgba(132, 173, 234, .24);
+  border-radius: 15px;
+  padding: 7px;
+  background: linear-gradient(135deg, #162238, #11192b);
+  box-shadow: 0 6px 20px #00000024;
 }
 .profile-chip {
   width: 100%;
@@ -249,6 +252,7 @@ p {
   height: 30px;
 }
 .footer-actions button:hover,
+.footer-actions button.active,
 .topbar-actions button:hover {
   color: #dcecff;
   background: rgba(90, 168, 255, 0.1);
@@ -489,6 +493,20 @@ p {
   font-family: "Space Grotesk";
   font-weight: 800;
 }
+.crew-card > .avatar { display: grid; margin-inline: auto; }
+.formatted-message { font-synthesis: weight style; white-space: pre-wrap; overflow-wrap: anywhere; }
+.formatted-message strong { font-family: inherit; font-weight: 700; }
+.formatted-message em { font-style: italic; }
+.calendar-day.scheduled:disabled { opacity: 1; cursor: not-allowed; border-color: #ffbb5d66; background: #ffbb5d15; color: #ffd99b; }
+.calendar-legend { color: var(--muted); font-size: 12px; margin-bottom: 0; }
+.meetup-form-hint { position: fixed; bottom: 24px; left: calc(50% + 134px); transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 300px); padding: 13px 20px; border: 1px solid #7dbaff88; border-radius: 16px; background: #142946; color: #e4f2ff; box-shadow: 0 8px 35px #0009, 0 0 25px #5aa8ff22; cursor: pointer; }
+.meetup-form-hint svg { flex: none; animation: meetup-hint-bounce 1.3s ease-in-out infinite; }
+.meetup-form-heading { scroll-margin-top: 100px; }
+@keyframes meetup-hint-bounce { 50% { transform: translateY(5px); } }
+@media(max-width: 900px) { .meetup-form-hint { left: calc(50% + 39px); max-width: calc(100vw - 110px); } }
+@media(prefers-reduced-motion: reduce) { .meetup-form-hint svg { animation: none; } }
+.message-reply-quote { display: grid; gap: 4px; }
+.message-reply-quote > strong { font-size: .75rem; color: #a5d9ff; }
 .rank {
   color: #7caeff;
   font-size: 10px;
@@ -1540,7 +1558,10 @@ p {
   .footer-actions {
     padding-inline: 0;
     justify-content: center;
+    flex-direction: column;
+    align-items: center;
   }
+  .sidebar-footer { padding: 4px; }
   .main-shell {
     grid-column: 2;
   }

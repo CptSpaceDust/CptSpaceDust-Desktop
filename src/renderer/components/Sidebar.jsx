@@ -36,7 +36,15 @@ export default function Sidebar({ page, setPage, profile, onLogout, unread }) {
         <strong>CptSpaceDust</strong>
       </div>
       <nav>
-        {profile?.rank?.toLowerCase() === "captain" && <button className={page === "captain" ? "nav-item active" : "nav-item"} onClick={() => setPage("captain")}><LockKeyhole /><span>Captain Panel</span></button>}
+        {profile?.rank?.toLowerCase() === "captain" && (
+          <button
+            className={page === "captain" ? "nav-item active" : "nav-item"}
+            onClick={() => setPage("captain")}
+          >
+            <LockKeyhole />
+            <span>Captain Panel</span>
+          </button>
+        )}
         {groups.map((group) => (
           <section className="nav-group" key={group.label}>
             <span>{group.label}</span>
@@ -68,13 +76,17 @@ export default function Sidebar({ page, setPage, profile, onLogout, unread }) {
             <strong>{profile?.username || "Crew member"}</strong>
             <small>{profile?.rank || "Crew"}</small>
           </span>
-          <Settings />
         </button>
         <div className="footer-actions">
-          <button onClick={() => setPage("settings")} title="App settings">
-            <LockKeyhole />
+          <button
+            onClick={() => setPage("settings")}
+            title="App settings"
+            aria-label="App settings"
+            className={page === "settings" ? "active" : ""}
+          >
+            <Settings />
           </button>
-          <button onClick={onLogout} title="Sign out">
+          <button onClick={onLogout} title="Sign out" aria-label="Sign out">
             <LogOut />
           </button>
         </div>

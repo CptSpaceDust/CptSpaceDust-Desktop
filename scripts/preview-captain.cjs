@@ -4,11 +4,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
 const root = path.resolve(__dirname, "..");
+const regression = process.argv.includes("--regression");
 async function main() {
   await esbuild.build({
-    absWorkingDir: root, entryPoints: ["tests/fixtures/captain-preview.jsx"], bundle: true, jsx: "automatic", outfile: "audit-evidence/captain-preview.js", loader: { ".wav": "file", ".mp3": "file" },
+    absWorkingDir: root, entryPoints: [regression ? "tests/fixtures/community-fixes-preview.jsx" : "tests/fixtures/captain-preview.jsx"], bundle: true, jsx: "automatic", outfile: "audit-evidence/captain-preview.js", loader: { ".wav": "file", ".mp3": "file" },
     plugins: [{ name: "isolate-backend", setup(build) {
-      build.onLoad({ filter: /[\\/]lib[\\/]supabase\.js$/ }, () => ({ contents: `const query = { select(){return this},eq(){return this},order(){return this},limit(){return this},then(resolve){return Promise.resolve({data:[],error:null}).then(resolve)} }; const channel = {on(){return this},subscribe(){return this}}; export const supabase = {from(){return query},channel(){return channel},removeChannel(){},realtime:{setAuth:async()=>{}}};`, loader: "js" }));
+      build.onLoad({ filter: /[\\/]lib[\\/]supabase\.js$/ }, () => ({ contents: regression ? fs.readFileSync(path.join(root, "tests/fixtures/community-fixes-backend.js"), "utf8") : `const query = { select(){return this},eq(){return this},order(){return this},limit(){return this},then(resolve){return Promise.resolve({data:[],error:null}).then(resolve)} }; const channel = {on(){return this},subscribe(){return this}}; export const supabase = {from(){return query},channel(){return channel},removeChannel(){},realtime:{setAuth:async()=>{}}};`, loader: "js" }));
       build.onLoad({ filter: /[\\/]lib[\\/]captain\.js$/ }, () => ({ contents: `export const requireCaptain=async()=>{}; export const read=async query=>(await query).data; export const captainFunction=async()=>({bans:[],results:[]});`, loader: "js" }));
     } }],
   });
