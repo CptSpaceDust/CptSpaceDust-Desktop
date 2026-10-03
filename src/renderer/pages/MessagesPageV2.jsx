@@ -173,6 +173,59 @@ function ScreenShareTile({ item }) {
   );
 }
 
+function DeleteMessageDialog({ message, onClose, onDelete }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function closeAndRestoreFocus() {
+    onClose();
+    requestAnimationFrame(() =>
+      document.querySelector(".chat-panel .composer textarea")?.focus(),
+    );
+  }
+
+  async function confirmDelete() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await onDelete(message);
+      closeAndRestoreFocus();
+    } catch (exception) {
+      setError(exception.message || "The message could not be deleted.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Delete message?" onClose={closeAndRestoreFocus}>
+      <p className="modal-copy">
+        This message will be permanently removed from the conversation.
+      </p>
+      {error && <p className="form-message error">{error}</p>}
+      <div className="modal-actions">
+        <button
+          type="button"
+          className="button ghost"
+          onClick={closeAndRestoreFocus}
+          disabled={busy}
+          autoFocus
+        >
+          Keep message
+        </button>
+        <button
+          type="button"
+          className="button danger"
+          onClick={confirmDelete}
+          disabled={busy}
+        >
+          <Trash2 /> {busy ? "Deleting…" : "Delete message"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function VoiceCall({ conversation, user, onClose, requestedCallId }) {
   const [status, setStatus] = useState("Preparing your secure voice room…");
   const [connected, setConnected] = useState(false);
@@ -1039,6 +1092,7 @@ function DirectMessagesPage({
   const [, setReadRevision] = useState(0);
   const [call, setCall] = useState(null);
   const [replying, setReplying] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const endRef = useRef();
   useEffect(() => {
     const refresh = () => setReadRevision((value) => value + 1);
@@ -1214,13 +1268,9 @@ function DirectMessagesPage({
     }
   }
   async function remove(item) {
-    if (!confirm("Delete this message?")) return;
-    try {
-      await deleteMessage(item.id, user.id);
-      setMessages((rows) => rows.filter((x) => x.id !== item.id));
-    } catch (x) {
-      setNotice(x.message);
-    }
+    await deleteMessage(item.id, user.id);
+    setMessages((rows) => rows.filter((x) => x.id !== item.id));
+    setReplying((current) => (current?.id === item.id ? null : current));
   }
   if (loading)
     return (
@@ -1428,7 +1478,7 @@ function DirectMessagesPage({
                               />
                               <button
                                 className="delete"
-                                onClick={() => remove(item)}
+                                onClick={() => setDeleting(item)}
                                 title="Delete"
                               >
                                 <Trash2 />
@@ -1480,6 +1530,13 @@ function DirectMessagesPage({
           user={user}
           requestedCallId={call.callId}
           onClose={() => setCall(null)}
+        />
+      )}
+      {deleting && (
+        <DeleteMessageDialog
+          message={deleting}
+          onClose={() => setDeleting(null)}
+          onDelete={remove}
         />
       )}
     </div>
@@ -1788,6 +1845,7 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
   const [, setReadRevision] = useState(0);
   const [replying, setReplying] = useState(null);
   const [call, setCall] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const endRef = useRef();
   useEffect(() => {
     const refresh = () => setReadRevision((value) => value + 1);
@@ -1933,13 +1991,9 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
     }
   }
   async function remove(item) {
-    if (!confirm("Delete this message?")) return;
-    try {
-      await deleteGroupMessage(item.id, user.id);
-      setMessages((rows) => rows.filter((row) => row.id !== item.id));
-    } catch (exception) {
-      setNotice(exception.message);
-    }
+    await deleteGroupMessage(item.id, user.id);
+    setMessages((rows) => rows.filter((row) => row.id !== item.id));
+    setReplying((current) => (current?.id === item.id ? null : current));
   }
   async function leave() {
     try {
@@ -2189,7 +2243,7 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                               />
                               <button
                                 className="delete"
-                                onClick={() => remove(item)}
+                                onClick={() => setDeleting(item)}
                                 title="Delete"
                               >
                                 <Trash2 />
@@ -2262,6 +2316,13 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
           user={user}
           requestedCallId={call.callId}
           onClose={() => setCall(null)}
+        />
+      )}
+      {deleting && (
+        <DeleteMessageDialog
+          message={deleting}
+          onClose={() => setDeleting(null)}
+          onDelete={remove}
         />
       )}
     </div>

@@ -90,3 +90,20 @@ test("website message formatting preserves whitespace and safely escapes HTML", 
   assert.match(reply, /Replying to Nova/);
   assert.match(reply, /<strong>Hello<\/strong>/);
 });
+
+test("message deletion uses an in-app dialog and restores composer focus", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "../src/renderer/pages/MessagesPageV2.jsx"),
+    "utf8",
+  );
+  assert.doesNotMatch(source, /confirm\("Delete this message\?"\)/);
+  assert.match(source, /function DeleteMessageDialog/);
+  assert.match(
+    source,
+    /querySelector\("\.chat-panel \.composer textarea"\)\?\.focus\(\)/,
+  );
+  assert.equal(
+    (source.match(/onClick=\{\(\) => setDeleting\(item\)\}/g) || []).length,
+    2,
+  );
+});
