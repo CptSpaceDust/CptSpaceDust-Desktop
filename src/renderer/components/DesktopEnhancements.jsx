@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, CloudOff, Rocket, X } from "lucide-react";
+import { CheckCircle2, CloudOff, Minus, Rocket, X } from "lucide-react";
 import { getMeetups } from "../lib/data";
 import { getPreferences, isQuietTime } from "../lib/preferences";
 import { playNotificationSound } from "../lib/sounds";
@@ -117,12 +117,12 @@ export function WhatsNew() {
         className="modal whats-new"
         role="dialog"
         aria-modal="true"
-        aria-label="What's new"
+        aria-label="What's changed"
       >
         <div className="modal-header">
           <div>
             <span className="eyebrow">Version {version}</span>
-            <h2>What’s new in CptSpaceDust</h2>
+            <h2>What’s Changed</h2>
           </div>
           <button className="icon-button" onClick={close}>
             <X />
@@ -131,30 +131,31 @@ export function WhatsNew() {
         <div className="whats-new-hero">
           <Rocket />
           <div>
-            <strong>A smoother community orbit</strong>
-            <p>
-              Messages, notifications, meetup reminders, calls, privacy, and
-              connection recovery have all been upgraded.
-            </p>
+            <strong>A clearer view of this update</strong>
+            <p>Just the two things that matter: what arrived and what left.</p>
           </div>
         </div>
-        <ul>
-          <li>
-            <CheckCircle2 /> Unread badges, chat search, mute controls, and
-            saved drafts
-          </li>
-          <li>
-            <CheckCircle2 /> Local-time meetup reminders and occupied-day
-            protection
-          </li>
-          <li>
-            <CheckCircle2 /> Better call devices, push-to-talk, and speaking
-            indicators
-          </li>
-          <li>
-            <CheckCircle2 /> Inactivity locking and member reporting
-          </li>
-        </ul>
+        <div className="whats-changed-grid">
+          <article className="change-card added">
+            <CheckCircle2 />
+            <div>
+              <strong>Added</strong>
+              <p>
+                Space Glass styling across the app, plus improved messages,
+                reminders, calls, privacy, and offline recovery.
+              </p>
+            </div>
+          </article>
+          <article className="change-card removed">
+            <Minus />
+            <div>
+              <strong>Removed</strong>
+              <p>
+                The old mixed panel styling. No community features were removed.
+              </p>
+            </div>
+          </article>
+        </div>
         <button className="button primary" onClick={close}>
           Start exploring
         </button>

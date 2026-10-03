@@ -29,7 +29,7 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
   assert.match(preferences, /saveDraft/);
   assert.match(settings, /Lock after no activity/);
   assert.match(enhancements, /Meetup starting soon/);
-  assert.match(enhancements, /What’s new in CptSpaceDust/);
+  assert.match(enhancements, /What’s Changed/);
   assert.match(messages, /Search messages/);
   assert.match(profile, /Report a concern/);
 });
