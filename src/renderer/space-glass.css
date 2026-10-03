@@ -1267,7 +1267,7 @@ html[data-density="compact"] .settings-panel {
   position: relative;
   display: grid;
   place-items: center;
-  width: 110px;
+  width: 170px;
   height: 220px;
   overflow: hidden;
   filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.34));
@@ -1275,7 +1275,7 @@ html[data-density="compact"] .settings-panel {
 
 .mayu-walk-frame {
   display: block;
-  width: 110px;
+  width: 170px;
   height: 220px;
   object-fit: contain;
 }
@@ -1286,12 +1286,12 @@ html[data-density="compact"] .settings-panel {
 }
 
 .mayu-loader.compact .mayu-loader-art {
-  width: 52px;
+  width: 84px;
   height: 104px;
 }
 
 .mayu-loader.compact .mayu-walk-frame {
-  width: 52px;
+  width: 84px;
   height: 104px;
 }
 
