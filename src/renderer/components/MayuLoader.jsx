@@ -1,8 +1,39 @@
+import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
-import mayuWalk from "../assets/mayu/mayu-walk.png";
+import mayuWalk1 from "../assets/mayu/mayu-walk-1.png";
+import mayuWalk2 from "../assets/mayu/mayu-walk-2.png";
+import mayuWalk3 from "../assets/mayu/mayu-walk-3.png";
+import mayuWalk4 from "../assets/mayu/mayu-walk-4.png";
+import mayuWalk5 from "../assets/mayu/mayu-walk-5.png";
+import mayuWalk6 from "../assets/mayu/mayu-walk-6.png";
 import mayuUpdate from "../assets/mayu/mayu-update.png";
 
+const walkFrames = [
+  mayuWalk1,
+  mayuWalk2,
+  mayuWalk3,
+  mayuWalk4,
+  mayuWalk5,
+  mayuWalk6,
+];
+
 export function MayuLoader({ mode = "walk", label, compact = false }) {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    if (mode !== "walk") return undefined;
+    const reduced =
+      document.documentElement.dataset.motion === "reduced" ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setFrame(0);
+      return undefined;
+    }
+    const timer = window.setInterval(
+      () => setFrame((current) => (current + 1) % walkFrames.length),
+      130,
+    );
+    return () => window.clearInterval(timer);
+  }, [mode]);
   return (
     <div
       className={`mayu-loader mayu-loader-${mode} ${compact ? "compact" : ""}`}
@@ -11,10 +42,7 @@ export function MayuLoader({ mode = "walk", label, compact = false }) {
         {mode === "update" ? (
           <img src={mayuUpdate} alt="" />
         ) : (
-          <div
-            className="mayu-walk-sprite"
-            style={{ backgroundImage: `url(${mayuWalk})` }}
-          />
+          <img className="mayu-walk-frame" src={walkFrames[frame]} alt="" />
         )}
       </div>
       <LoaderCircle className="mayu-loader-fallback spin" aria-hidden="true" />

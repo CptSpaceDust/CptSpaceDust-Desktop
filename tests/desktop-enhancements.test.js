@@ -15,6 +15,7 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
     "DesktopEnhancements.jsx",
   );
   const settings = read("src", "renderer", "components", "AppSettings.jsx");
+  const mayuLoader = read("src", "renderer", "components", "MayuLoader.jsx");
   const messages = read("src", "renderer", "pages", "MessagesPageV2.jsx");
   const profile = read(
     "src",
@@ -36,6 +37,9 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
   assert.match(preferences, /glassIntensity/);
   assert.match(preferences, /enterToSend/);
   assert.match(preferences, /showMayuLoaders/);
+  assert.match(mayuLoader, /mayu-walk-6\.png/);
+  assert.match(mayuLoader, /src=\{walkFrames\[frame\]\}/);
+  assert.doesNotMatch(mayuLoader, /backgroundImage/);
   assert.match(messages, /Search messages/);
   assert.match(profile, /Report a concern/);
 });

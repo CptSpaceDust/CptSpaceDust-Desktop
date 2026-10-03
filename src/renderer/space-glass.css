@@ -1269,16 +1269,15 @@ html[data-density="compact"] .settings-panel {
   place-items: center;
   width: 110px;
   height: 220px;
+  overflow: hidden;
   filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.34));
 }
 
-.mayu-walk-sprite {
+.mayu-walk-frame {
+  display: block;
   width: 110px;
   height: 220px;
-  background-repeat: no-repeat;
-  background-position: 0 0;
-  background-size: 600% 100%;
-  animation: mayu-walk-cycle 0.78s linear infinite;
+  object-fit: contain;
 }
 
 .mayu-loader.compact {
@@ -1291,7 +1290,7 @@ html[data-density="compact"] .settings-panel {
   height: 104px;
 }
 
-.mayu-loader.compact .mayu-walk-sprite {
+.mayu-loader.compact .mayu-walk-frame {
   width: 52px;
   height: 104px;
 }
@@ -1341,33 +1340,6 @@ html[data-mayu-loaders="off"] .update-flight-scene .mayu-loader-fallback {
   display: none;
 }
 
-@keyframes mayu-walk-cycle {
-  0%,
-  16% {
-    background-position: 0 0;
-  }
-  16.1%,
-  32% {
-    background-position: 20% 0;
-  }
-  32.1%,
-  48% {
-    background-position: 40% 0;
-  }
-  48.1%,
-  64% {
-    background-position: 60% 0;
-  }
-  64.1%,
-  80% {
-    background-position: 80% 0;
-  }
-  80.1%,
-  100% {
-    background-position: 100% 0;
-  }
-}
-
 @keyframes mayu-work-hover {
   50% {
     transform: translateY(-6px) rotate(-0.8deg);
@@ -1384,7 +1356,6 @@ html[data-motion="reduced"] *::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mayu-walk-sprite,
   .mayu-loader-update .mayu-loader-art {
     animation: none !important;
   }
