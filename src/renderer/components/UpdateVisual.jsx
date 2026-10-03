@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Rocket } from "lucide-react";
+import { MayuLoader } from "./MayuLoader";
 
 export function UpdateVisual({ update }) {
   const percent = Math.min(100, Math.max(0, Number(update.percent) || 0));
@@ -9,6 +10,7 @@ export function UpdateVisual({ update }) {
         <i />
         <i />
         <i />
+        <MayuLoader mode="update" />
         <div className="update-flight-rocket">
           <Rocket />
         </div>

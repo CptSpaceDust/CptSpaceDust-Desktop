@@ -4,6 +4,11 @@ const UNREAD_KEY = "cptspacedust.desktop.message-unread.v1";
 const DRAFT_PREFIX = "cptspacedust.desktop.draft.";
 
 export const defaultPreferences = Object.freeze({
+  glassIntensity: "balanced",
+  compactLayout: false,
+  reduceMotion: false,
+  showMayuLoaders: true,
+  enterToSend: true,
   notificationSound: true,
   notificationVolume: 82,
   quietHours: false,
@@ -14,6 +19,15 @@ export const defaultPreferences = Object.freeze({
   inactivityLockMinutes: 0,
   mutedConversations: {},
 });
+
+export function applyPreferences(settings = getPreferences()) {
+  const root = document.documentElement;
+  root.dataset.glass = settings.glassIntensity || "balanced";
+  root.dataset.density = settings.compactLayout ? "compact" : "comfortable";
+  root.dataset.motion = settings.reduceMotion ? "reduced" : "full";
+  root.dataset.mayuLoaders = settings.showMayuLoaders === false ? "off" : "on";
+  return settings;
+}
 
 function readJson(key, fallback) {
   try {
@@ -28,6 +42,7 @@ export function getPreferences() {
 export function updatePreferences(changes) {
   const next = { ...getPreferences(), ...changes };
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  applyPreferences(next);
   window.dispatchEvent(
     new CustomEvent("desktop-preferences", { detail: next }),
   );

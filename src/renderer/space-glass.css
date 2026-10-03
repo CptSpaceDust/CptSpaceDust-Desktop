@@ -1216,3 +1216,176 @@ input[type="file"]::file-selector-button {
     backdrop-filter: none;
   }
 }
+
+/* Personalization */
+html[data-glass="soft"] {
+  --glass: rgba(11, 19, 37, 0.5);
+  --glass-strong: rgba(12, 21, 41, 0.72);
+  --glass-soft: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(156, 205, 255, 0.12);
+  --glass-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+html[data-glass="deep"] {
+  --glass: rgba(9, 16, 32, 0.8);
+  --glass-strong: rgba(8, 15, 31, 0.94);
+  --glass-soft: rgba(255, 255, 255, 0.065);
+  --glass-border: rgba(156, 205, 255, 0.27);
+  --glass-shadow: 0 28px 78px rgba(0, 0, 0, 0.46);
+}
+
+html[data-density="compact"] .page {
+  padding: 24px 28px;
+}
+
+html[data-density="compact"] .card-grid,
+html[data-density="compact"] .crew-grid,
+html[data-density="compact"] .settings-grid,
+html[data-density="compact"] .feed,
+html[data-density="compact"] .timeline {
+  gap: 11px;
+}
+
+html[data-density="compact"] .panel,
+html[data-density="compact"] .settings-panel {
+  padding: 17px;
+}
+
+/* Mayu loading companion */
+.mayu-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 150px;
+  color: #b7cae4;
+  text-align: center;
+}
+
+.mayu-loader-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 110px;
+  height: 220px;
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.34));
+}
+
+.mayu-walk-sprite {
+  width: 110px;
+  height: 220px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 600% 100%;
+  animation: mayu-walk-cycle 0.78s linear infinite;
+}
+
+.mayu-loader.compact {
+  gap: 8px;
+  min-width: 120px;
+}
+
+.mayu-loader.compact .mayu-loader-art {
+  width: 52px;
+  height: 104px;
+}
+
+.mayu-loader.compact .mayu-walk-sprite {
+  width: 52px;
+  height: 104px;
+}
+
+.mayu-loader-update .mayu-loader-art {
+  width: 170px;
+  height: 150px;
+  animation: mayu-work-hover 2.8s ease-in-out infinite;
+}
+
+.mayu-loader-update img {
+  width: 170px;
+  height: 170px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 18px rgba(91, 216, 255, 0.22));
+}
+
+.mayu-loader-fallback {
+  display: none;
+}
+
+.update-flight-scene .mayu-loader {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+}
+
+.update-flight-scene .update-flight-rocket {
+  display: none;
+}
+
+html[data-mayu-loaders="off"] .mayu-loader-art {
+  display: none;
+}
+
+html[data-mayu-loaders="off"] .mayu-loader-fallback {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+
+html[data-mayu-loaders="off"] .update-flight-scene .update-flight-rocket {
+  display: block;
+}
+
+html[data-mayu-loaders="off"] .update-flight-scene .mayu-loader-fallback {
+  display: none;
+}
+
+@keyframes mayu-walk-cycle {
+  0%,
+  16% {
+    background-position: 0 0;
+  }
+  16.1%,
+  32% {
+    background-position: 20% 0;
+  }
+  32.1%,
+  48% {
+    background-position: 40% 0;
+  }
+  48.1%,
+  64% {
+    background-position: 60% 0;
+  }
+  64.1%,
+  80% {
+    background-position: 80% 0;
+  }
+  80.1%,
+  100% {
+    background-position: 100% 0;
+  }
+}
+
+@keyframes mayu-work-hover {
+  50% {
+    transform: translateY(-6px) rotate(-0.8deg);
+  }
+}
+
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mayu-walk-sprite,
+  .mayu-loader-update .mayu-loader-art {
+    animation: none !important;
+  }
+}

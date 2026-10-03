@@ -3,7 +3,9 @@ import {
   Bell,
   Download,
   LockKeyhole,
+  MessageSquareText,
   RefreshCw,
+  SlidersHorizontal,
   TimerReset,
   Volume2,
 } from "lucide-react";
@@ -66,10 +68,81 @@ export default function AppSettings() {
     <div className="page">
       <PageHeader
         eyebrow="Desktop settings"
-        title="Privacy & app lock"
-        description="Keep community messages private whenever you step away."
+        title="Make the app yours"
+        description="Tune the look, motion, messages, notifications, privacy, and updates."
       />
       <div className="settings-grid">
+        <section className="panel settings-panel">
+          <div className="section-icon">
+            <SlidersHorizontal />
+          </div>
+          <h2>Appearance & motion</h2>
+          <p>Adjust the glass effect, spacing, and animated loading screens.</p>
+          <Field label="Glass strength">
+            <select
+              value={preferences.glassIntensity}
+              onChange={(event) =>
+                preference("glassIntensity", event.target.value)
+              }
+            >
+              <option value="soft">Soft</option>
+              <option value="balanced">Balanced</option>
+              <option value="deep">Deep</option>
+            </select>
+          </Field>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.compactLayout}
+              onChange={(event) =>
+                preference("compactLayout", event.target.checked)
+              }
+            />
+            <span>Use a more compact layout</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.reduceMotion}
+              onChange={(event) =>
+                preference("reduceMotion", event.target.checked)
+              }
+            />
+            <span>Reduce motion and animation</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.showMayuLoaders}
+              onChange={(event) =>
+                preference("showMayuLoaders", event.target.checked)
+              }
+            />
+            <span>Show Mayu on loading screens</span>
+          </label>
+        </section>
+        <section className="panel settings-panel">
+          <div className="section-icon">
+            <MessageSquareText />
+          </div>
+          <h2>Messages</h2>
+          <p>Choose how the message box behaves while you type.</p>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.enterToSend}
+              onChange={(event) =>
+                preference("enterToSend", event.target.checked)
+              }
+            />
+            <span>Press Enter to send</span>
+          </label>
+          <p className="micro-copy">
+            {preferences.enterToSend
+              ? "Shift+Enter adds a new line."
+              : "Use Ctrl+Enter or the send button to send."}
+          </p>
+        </section>
         <section className="panel settings-panel">
           <div className="section-icon">
             <LockKeyhole />

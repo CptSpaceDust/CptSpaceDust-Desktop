@@ -5,6 +5,7 @@ import LockScreen from "./components/LockScreen";
 import ResetPasswordScreen from "./components/ResetPasswordScreen";
 import Sidebar from "./components/Sidebar";
 import AppSettings from "./components/AppSettings";
+import { MayuLoader } from "./components/MayuLoader";
 import { getActiveRestrictions, getProfile, updatePresence } from "./lib/data";
 import { supabase } from "./lib/supabase";
 import {
@@ -410,8 +411,7 @@ export default function App() {
   if (lock.loading || loading)
     return (
       <div className="boot-screen">
-        <div className="boot-orbit" />
-        <strong>Establishing orbit…</strong>
+        <MayuLoader label="Establishing orbit…" />
       </div>
     );
   if (lock.locked) return <LockScreen />;
@@ -428,8 +428,7 @@ export default function App() {
   if (!profile)
     return (
       <div className="boot-screen">
-        <div className="boot-orbit" />
-        <strong>Loading your crew profile…</strong>
+        <MayuLoader label="Loading your crew profile…" />
       </div>
     );
   return (

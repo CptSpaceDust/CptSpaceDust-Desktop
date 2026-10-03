@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { shouldSendOnEnter } from "../lib/messageBehavior.mjs";
-import { loadDraft, markConversationRead, saveDraft } from "../lib/preferences";
+import {
+  getPreferences,
+  loadDraft,
+  markConversationRead,
+  saveDraft,
+} from "../lib/preferences";
 
 export const activeConversation = { current: null };
 
@@ -83,12 +88,21 @@ export default function MessageComposer({
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [enterToSend, setEnterToSend] = useState(
+    getPreferences().enterToSend !== false,
+  );
   const [typers, setTypers] = useState({});
   const channelRef = useRef(null);
   const inputRef = useRef(null);
   const sendingRef = useRef(false);
   const lastInput = useRef(0);
   const draftRef = useRef("");
+  useEffect(() => {
+    const sync = (event) =>
+      setEnterToSend((event.detail || getPreferences()).enterToSend !== false);
+    window.addEventListener("desktop-preferences", sync);
+    return () => window.removeEventListener("desktop-preferences", sync);
+  }, []);
   useEffect(() => {
     let alive = true,
       ready = false;
@@ -232,7 +246,12 @@ export default function MessageComposer({
             channelRef.current?.(false);
           }}
           onKeyDown={(event) => {
-            if (shouldSendOnEnter(event.nativeEvent)) {
+            const send = enterToSend
+              ? shouldSendOnEnter(event.nativeEvent)
+              : event.key === "Enter" &&
+                event.ctrlKey &&
+                !event.nativeEvent.isComposing;
+            if (send) {
               event.preventDefault();
               event.currentTarget.form.requestSubmit();
             }
@@ -252,7 +271,11 @@ export default function MessageComposer({
           <code>*italic*</code> · <code>||bold||</code> ·{" "}
           <code>**bold italic**</code>
         </p>
-        <p>Enter to send · Shift+Enter for a new line</p>
+        <p>
+          {enterToSend
+            ? "Enter to send · Shift+Enter for a new line"
+            : "Ctrl+Enter to send · Enter for a new line"}
+        </p>
       </details>
     </>
   );

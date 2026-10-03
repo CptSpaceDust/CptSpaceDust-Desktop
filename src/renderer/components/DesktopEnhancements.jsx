@@ -131,8 +131,8 @@ export function WhatsNew() {
         <div className="whats-new-hero">
           <Rocket />
           <div>
-            <strong>A clearer view of this update</strong>
-            <p>Just the two things that matter: what arrived and what left.</p>
+            <strong>Here’s what changed</strong>
+            <p>A quick look at what’s new in this version.</p>
           </div>
         </div>
         <div className="whats-changed-grid">
@@ -141,8 +141,9 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                Space Glass styling across the app, plus improved messages,
-                reminders, calls, privacy, and offline recovery.
+                A new Space Glass look, more settings, and Mayu loading
+                animations. Messages, calls, reminders, and offline recovery
+                also got some extra polish.
               </p>
             </div>
           </article>
@@ -151,7 +152,7 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                The old mixed panel styling. No community features were removed.
+                The old mix of panel styles. No community features were removed.
               </p>
             </div>
           </article>

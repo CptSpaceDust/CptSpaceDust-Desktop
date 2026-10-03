@@ -3,6 +3,9 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 import "./space-glass.css";
+import { applyPreferences } from "./lib/preferences";
+
+applyPreferences();
 
 if (!window.desktop) {
   window.desktop = {

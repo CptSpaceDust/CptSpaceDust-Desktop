@@ -30,6 +30,12 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
   assert.match(settings, /Lock after no activity/);
   assert.match(enhancements, /Meetup starting soon/);
   assert.match(enhancements, /What’s Changed/);
+  assert.match(settings, /Appearance & motion/);
+  assert.match(settings, /Press Enter to send/);
+  assert.match(settings, /Show Mayu on loading screens/);
+  assert.match(preferences, /glassIntensity/);
+  assert.match(preferences, /enterToSend/);
+  assert.match(preferences, /showMayuLoaders/);
   assert.match(messages, /Search messages/);
   assert.match(profile, /Report a concern/);
 });
