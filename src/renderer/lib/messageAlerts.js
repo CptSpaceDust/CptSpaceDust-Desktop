@@ -3,6 +3,12 @@ import { supabase } from "./supabase";
 import { playNotificationSound } from "./sounds";
 import { activeConversation } from "../components/MessageComposer";
 import { shouldAlertForMessage } from "./messageBehavior.mjs";
+import {
+  getPreferences,
+  isMuted,
+  isQuietTime,
+  markConversationUnread,
+} from "./preferences";
 
 export function useMessageAlerts(userId) {
   useEffect(() => {
@@ -35,6 +41,8 @@ export function useMessageAlerts(userId) {
       )
         return;
       if (!alive) return;
+      const settings = getPreferences();
+      if (isMuted(id, group, settings) || isQuietTime(settings)) return;
       const current = activeConversation.current;
       if (
         !shouldAlertForMessage(
@@ -46,6 +54,7 @@ export function useMessageAlerts(userId) {
         )
       )
         return;
+      markConversationUnread(id, group);
       const { data: sender } = await supabase
         .from("profiles")
         .select("username")

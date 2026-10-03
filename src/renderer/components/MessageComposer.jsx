@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { shouldSendOnEnter } from "../lib/messageBehavior.mjs";
+import { loadDraft, markConversationRead, saveDraft } from "../lib/preferences";
 
 export const activeConversation = { current: null };
 
@@ -93,8 +94,10 @@ export default function MessageComposer({
       ready = false;
     const context = { id, group };
     activeConversation.current = context;
-    setDraft("");
-    draftRef.current = "";
+    const savedDraft = loadDraft(user.id, id, group);
+    setDraft(savedDraft);
+    draftRef.current = savedDraft;
+    markConversationRead(id, group);
     setTypers({});
     const channel = supabase.channel(
       group ? `group-chat-${id}` : `conversation-${id}`,
@@ -160,6 +163,18 @@ export default function MessageComposer({
       supabase.removeChannel(channel);
     };
   }, [id, group, user.id]);
+  useEffect(() => {
+    const markReadWhenVisible = () => {
+      if (!document.hidden && document.hasFocus())
+        markConversationRead(id, group);
+    };
+    window.addEventListener("focus", markReadWhenVisible);
+    document.addEventListener("visibilitychange", markReadWhenVisible);
+    return () => {
+      window.removeEventListener("focus", markReadWhenVisible);
+      document.removeEventListener("visibilitychange", markReadWhenVisible);
+    };
+  }, [id, group]);
   const names = Object.keys(typers)
     .filter(
       (key) =>
@@ -178,6 +193,7 @@ export default function MessageComposer({
       if ((await onSend(event)) !== false) {
         setDraft("");
         draftRef.current = "";
+        saveDraft(user.id, id, group, "");
         channelRef.current?.(false);
       }
     } finally {
@@ -207,6 +223,7 @@ export default function MessageComposer({
           onChange={(event) => {
             setDraft(event.target.value);
             draftRef.current = event.target.value;
+            saveDraft(user.id, id, group, event.target.value);
             lastInput.current = Date.now();
             channelRef.current?.(Boolean(event.target.value.trim()));
           }}

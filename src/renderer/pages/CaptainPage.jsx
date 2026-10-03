@@ -38,6 +38,13 @@ export default function CaptainPage({ user, profile }) {
           .select("user_id,action,expires_at")
           .gt("expires_at", new Date().toISOString())
           .order("expires_at"),
+        reports: supabase
+          .from("user_reports")
+          .select(
+            "id,reporter_id,reported_user_id,reason,context,status,created_at",
+          )
+          .order("created_at", { ascending: false })
+          .limit(200),
         flags: supabase
           .from("message_safety_flags")
           .select(
@@ -132,6 +139,7 @@ export default function CaptainPage({ user, profile }) {
     for (const table of [
       "meetup_requests",
       "user_restrictions",
+      "user_reports",
       "message_safety_flags",
       "trusted_friends",
       "music_artists",

@@ -31,6 +31,17 @@ import NotificationsPage from "./pages/NotificationsPage";
 import { useMessageAlerts } from "./lib/messageAlerts";
 import CaptainPage from "./pages/CaptainPage";
 import UpdateOverlay from "./components/UpdateVisual";
+import {
+  ConnectivityBanner,
+  InactivityLock,
+  useMeetupReminders,
+  WhatsNew,
+} from "./components/DesktopEnhancements";
+import {
+  getPreferences,
+  isQuietTime,
+  totalMessageUnread,
+} from "./lib/preferences";
 
 function parseNavigation(value) {
   const raw = String(value || "");
@@ -104,10 +115,19 @@ export default function App() {
   const [viewedPerson, setViewedPerson] = useState(null);
   const [messageRoute, setMessageRoute] = useState(null);
   const [unread, setUnread] = useState(0);
+  const [messageUnread, setMessageUnread] = useState(() =>
+    totalMessageUnread(),
+  );
   const [toast, setToast] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const incomingCallRef = useRef(null);
   useMessageAlerts(mfaRequired ? null : session?.user?.id);
+  useMeetupReminders(mfaRequired ? null : session?.user?.id);
+  useEffect(() => {
+    const refresh = () => setMessageUnread(totalMessageUnread());
+    window.addEventListener("message-reads", refresh);
+    return () => window.removeEventListener("message-reads", refresh);
+  }, []);
   useEffect(() => {
     window.desktop.appLock
       .getState()
@@ -244,7 +264,11 @@ export default function App() {
           setUnread((n) => n + 1);
           // Per-message alerts handle chat messages, including repeated messages
           // while the website's notification row is already unread.
-          if (item.type === "message" && /Conversation\.html/i.test(item.link || "")) return;
+          if (
+            item.type === "message" &&
+            /Conversation\.html/i.test(item.link || "")
+          )
+            return;
           let cancelledCall = false;
           if (item.type === "voice_call") {
             try {
@@ -262,14 +286,15 @@ export default function App() {
               stopRingtone();
               setIncomingCall(null);
             }
-            playNotificationSound();
+            if (!isQuietTime(getPreferences())) playNotificationSound();
             setToast(item);
           }
-          window.desktop.notify(
-            item.title || "Community update",
-            item.message || "You have a new notification.",
-            item.link || "Notifications.html",
-          );
+          if (!isQuietTime(getPreferences()))
+            window.desktop.notify(
+              item.title || "Community update",
+              item.message || "You have a new notification.",
+              item.link || "Notifications.html",
+            );
         },
       )
       .subscribe();
@@ -345,6 +370,7 @@ export default function App() {
         return (
           <CrewProfilePage
             person={viewedPerson}
+            user={session.user}
             onBack={() => setPage("crew")}
           />
         );
@@ -409,6 +435,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <UpdateOverlay />
+      <WhatsNew />
+      <InactivityLock enabled={lock.enabled} />
       <Sidebar
         page={page}
         setPage={(id) => {
@@ -420,6 +448,7 @@ export default function App() {
         unread={unread}
       />
       <main className="main-shell">
+        <ConnectivityBanner />
         <header className="topbar">
           <div className="desktop-drag-region" />
           <div className="topbar-actions">
@@ -430,6 +459,9 @@ export default function App() {
               onClick={() => setPage("messages")}
             >
               <MessageCircle />
+              {messageUnread > 0 && (
+                <b>{messageUnread > 99 ? "99+" : messageUnread}</b>
+              )}
             </button>
             <button
               className={page === "notifications" ? "active" : ""}

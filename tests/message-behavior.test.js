@@ -51,6 +51,7 @@ test("website message formatting preserves whitespace and safely escapes HTML", 
     require: (id) =>
       id.includes("supabase") ||
       id.includes("messageBehavior") ||
+      id.includes("preferences") ||
       id === "lucide-react"
         ? {}
         : require(id),

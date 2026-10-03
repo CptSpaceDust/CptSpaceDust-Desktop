@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  CheckCheck,
+  BellOff,
+  BellRing,
   Edit3,
   Maximize2,
   Mic,
@@ -52,6 +55,13 @@ import {
 } from "../lib/data";
 import { supabase } from "../lib/supabase";
 import { playCallEventSound, startRingtone, stopRingtone } from "../lib/sounds";
+import {
+  conversationUnreadCount,
+  isMuted,
+  markAllConversationsRead,
+  markConversationRead,
+  setMuted,
+} from "../lib/preferences";
 import {
   Avatar,
   Empty,
@@ -177,6 +187,13 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
   const [sources, setSources] = useState(null);
   const [sourceError, setSourceError] = useState("");
   const [volumes, setVolumes] = useState({});
+  const [audioInputs, setAudioInputs] = useState([]);
+  const [audioOutputs, setAudioOutputs] = useState([]);
+  const [inputDevice, setInputDevice] = useState("");
+  const [outputDevice, setOutputDevice] = useState("");
+  const [testingMic, setTestingMic] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const [pushToTalk, setPushToTalk] = useState(false);
   const roomRef = useRef();
   const callRef = useRef();
   const startedAtRef = useRef(0);
@@ -186,6 +203,17 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
     conversation.type === "group"
       ? conversation.name
       : conversation.person?.username || "Crew member";
+
+  async function refreshDevices() {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter((device) => device.kind === "audioinput");
+    const outputs = devices.filter((device) => device.kind === "audiooutput");
+    setAudioInputs(inputs);
+    setAudioOutputs(outputs);
+    setInputDevice((current) => current || inputs[0]?.deviceId || "");
+    setOutputDevice((current) => current || outputs[0]?.deviceId || "");
+  }
 
   useEffect(() => {
     let disposed = false;
@@ -360,6 +388,7 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
           autoSubscribe: true,
         });
         await room.localParticipant.setMicrophoneEnabled(true);
+        await refreshDevices().catch(() => {});
         if (disposed) return;
         stopRingtone();
         refresh();
@@ -435,6 +464,128 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
           .then(() => {});
     };
   }, []);
+
+  useEffect(() => {
+    const changed = () => refreshDevices().catch(() => {});
+    navigator.mediaDevices?.addEventListener?.("devicechange", changed);
+    return () =>
+      navigator.mediaDevices?.removeEventListener?.("devicechange", changed);
+  }, []);
+
+  useEffect(() => {
+    if (!connected || !pushToTalk) return undefined;
+    roomRef.current?.localParticipant.setMicrophoneEnabled(false).then(() => {
+      setMuted(true);
+      setStatus("Push to talk is on. Hold Space to speak.");
+    });
+    const isTyping = (target) =>
+      target instanceof HTMLElement &&
+      (target.matches("input, textarea, select") || target.isContentEditable);
+    const press = async (event) => {
+      if (event.code !== "Space" || event.repeat || isTyping(event.target))
+        return;
+      event.preventDefault();
+      await roomRef.current?.localParticipant.setMicrophoneEnabled(true);
+      setMuted(false);
+      setStatus("Speaking — release Space to mute.");
+    };
+    const release = async (event) => {
+      if (event.code !== "Space" || isTyping(event.target)) return;
+      event.preventDefault();
+      await roomRef.current?.localParticipant.setMicrophoneEnabled(false);
+      setMuted(true);
+      setStatus("Push to talk is on. Hold Space to speak.");
+    };
+    window.addEventListener("keydown", press);
+    window.addEventListener("keyup", release);
+    return () => {
+      window.removeEventListener("keydown", press);
+      window.removeEventListener("keyup", release);
+    };
+  }, [connected, pushToTalk]);
+
+  async function changeCallDevice(kind, deviceId) {
+    if (!deviceId || !roomRef.current) return;
+    try {
+      await roomRef.current.switchActiveDevice(kind, deviceId);
+      if (kind === "audioinput") setInputDevice(deviceId);
+      else {
+        setOutputDevice(deviceId);
+        await Promise.allSettled(
+          [...audioElementsRef.current.values()].map((element) =>
+            element.setSinkId?.(deviceId),
+          ),
+        );
+      }
+      setStatus(
+        kind === "audioinput" ? "Microphone changed." : "Speaker changed.",
+      );
+    } catch {
+      setStatus("That audio device could not be selected.");
+    }
+  }
+
+  async function testMicrophone() {
+    if (testingMic) return;
+    setTestingMic(true);
+    setMicLevel(0);
+    let stream;
+    let frame;
+    let context;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: inputDevice ? { deviceId: { exact: inputDevice } } : true,
+      });
+      context = new AudioContext();
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const samples = new Uint8Array(analyser.frequencyBinCount);
+      const started = performance.now();
+      const read = () => {
+        analyser.getByteFrequencyData(samples);
+        setMicLevel(
+          Math.min(
+            100,
+            Math.round(
+              (samples.reduce((sum, value) => sum + value, 0) /
+                samples.length /
+                110) *
+                100,
+            ),
+          ),
+        );
+        if (performance.now() - started < 3000)
+          frame = requestAnimationFrame(read);
+        else setTestingMic(false);
+      };
+      read();
+      setTimeout(() => {
+        cancelAnimationFrame(frame);
+        stream?.getTracks().forEach((track) => track.stop());
+        context?.close();
+        setTestingMic(false);
+      }, 3100);
+    } catch {
+      stream?.getTracks().forEach((track) => track.stop());
+      context?.close();
+      setTestingMic(false);
+      setStatus("The microphone test could not start. Check its permission.");
+    }
+  }
+
+  async function changePushToTalk(enabled) {
+    setPushToTalk(enabled);
+    if (!roomRef.current) return;
+    await roomRef.current.localParticipant.setMicrophoneEnabled(!enabled);
+    setMuted(enabled);
+    setStatus(
+      enabled
+        ? "Push to talk is on. Hold Space to speak."
+        : "Push to talk is off. Your microphone is on.",
+    );
+  }
 
   async function toggleMic() {
     if (!roomRef.current || busyControl) return;
@@ -575,6 +726,62 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
           </button>
         )}
 
+        {connected && (
+          <section className="call-device-panel" aria-label="Call devices">
+            <label>
+              <span>Microphone</span>
+              <select
+                value={inputDevice}
+                onChange={(event) =>
+                  changeCallDevice("audioinput", event.target.value)
+                }
+              >
+                {audioInputs.map((device, index) => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `Microphone ${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Speaker</span>
+              <select
+                value={outputDevice}
+                onChange={(event) =>
+                  changeCallDevice("audiooutput", event.target.value)
+                }
+              >
+                {audioOutputs.map((device, index) => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `Speaker ${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="call-mic-test">
+              <button
+                type="button"
+                onClick={testMicrophone}
+                disabled={testingMic}
+              >
+                <Mic /> {testingMic ? "Listening…" : "Test mic"}
+              </button>
+              <span aria-label={`Microphone level ${micLevel}%`}>
+                <i style={{ width: `${micLevel}%` }} />
+              </span>
+            </div>
+            <label className="call-push-to-talk">
+              <input
+                type="checkbox"
+                checked={pushToTalk}
+                onChange={(event) => changePushToTalk(event.target.checked)}
+              />
+              <span>Push to talk</span>
+              <small>Hold Space</small>
+            </label>
+          </section>
+        )}
+
         {screens.length > 0 && (
           <div className="call-screen-grid">
             {screens.map((item) => (
@@ -646,7 +853,7 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
         <footer className="call-actions">
           <button
             className={muted ? "call-button active" : "call-button"}
-            disabled={!connected || Boolean(busyControl)}
+            disabled={!connected || Boolean(busyControl) || pushToTalk}
             onClick={toggleMic}
             title={muted ? "Unmute microphone" : "Mute microphone"}
           >
@@ -828,9 +1035,16 @@ function DirectMessagesPage({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [messageQuery, setMessageQuery] = useState("");
+  const [, setReadRevision] = useState(0);
   const [call, setCall] = useState(null);
   const [replying, setReplying] = useState(null);
   const endRef = useRef();
+  useEffect(() => {
+    const refresh = () => setReadRevision((value) => value + 1);
+    window.addEventListener("message-reads", refresh);
+    return () => window.removeEventListener("message-reads", refresh);
+  }, []);
   async function loadAll() {
     try {
       const [items, pending] = await Promise.all([
@@ -906,6 +1120,7 @@ function DirectMessagesPage({
       return;
     }
     let live = true;
+    markConversationRead(selected.id, false, selected.updated_at);
     getMessages(selected.id)
       .then((rows) => live && setMessages(rows))
       .catch((e) => setError(e.message));
@@ -944,6 +1159,13 @@ function DirectMessagesPage({
   const byId = useMemo(
     () => Object.fromEntries(messages.map((x) => [x.id, x])),
     [messages],
+  );
+  const shownMessages = useMemo(
+    () =>
+      messages.filter((item) =>
+        item.content.toLowerCase().includes(messageQuery.toLowerCase()),
+      ),
+    [messages, messageQuery],
   );
   async function respond(request, status) {
     try {
@@ -1019,12 +1241,20 @@ function DirectMessagesPage({
         title="Messages"
         description="Private conversations, requests, replies, editing, and voice calls."
         action={
-          <MessageRequestLauncher
-            user={user}
-            profile={profile}
-            onChanged={loadAll}
-            onNotice={setNotice}
-          />
+          <div className="header-actions">
+            <button
+              className="button ghost"
+              onClick={() => markAllConversationsRead(conversations, false)}
+            >
+              <CheckCheck /> Mark all read
+            </button>
+            <MessageRequestLauncher
+              user={user}
+              profile={profile}
+              onChanged={loadAll}
+              onNotice={setNotice}
+            />
+          </div>
         }
       />
       <div className="message-mode-tabs">
@@ -1089,6 +1319,11 @@ function DirectMessagesPage({
                   <strong>{item.person?.username || "Crew member"}</strong>
                   <small>{online ? "Online" : "Offline"}</small>
                 </span>
+                {conversationUnreadCount(item.id, false) > 0 && (
+                  <b className="conversation-unread">
+                    {conversationUnreadCount(item.id, false)}
+                  </b>
+                )}
               </button>
             );
           })}
@@ -1106,15 +1341,43 @@ function DirectMessagesPage({
                     </span>
                   </div>
                 </div>
-                <button
-                  className="icon-button call"
-                  onClick={() => setCall({ conversation: selected })}
-                >
-                  <Phone />
-                </button>
+                <div className="chat-header-actions">
+                  <label className="conversation-search message-search">
+                    <Search />
+                    <input
+                      placeholder="Search messages"
+                      value={messageQuery}
+                      onChange={(event) => setMessageQuery(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    className="icon-button"
+                    title={
+                      isMuted(selected.id, false)
+                        ? "Unmute notifications"
+                        : "Mute notifications"
+                    }
+                    onClick={() => {
+                      setMuted(
+                        selected.id,
+                        false,
+                        !isMuted(selected.id, false),
+                      );
+                      setReadRevision((value) => value + 1);
+                    }}
+                  >
+                    {isMuted(selected.id, false) ? <BellOff /> : <BellRing />}
+                  </button>
+                  <button
+                    className="icon-button call"
+                    onClick={() => setCall({ conversation: selected })}
+                  >
+                    <Phone />
+                  </button>
+                </div>
               </header>
               <div className="message-stream">
-                {messages.map((item) => {
+                {shownMessages.map((item) => {
                   const quoted = item.reply_to_id
                     ? byId[item.reply_to_id]
                     : null;
@@ -1521,9 +1784,16 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [messageQuery, setMessageQuery] = useState("");
+  const [, setReadRevision] = useState(0);
   const [replying, setReplying] = useState(null);
   const [call, setCall] = useState(null);
   const endRef = useRef();
+  useEffect(() => {
+    const refresh = () => setReadRevision((value) => value + 1);
+    window.addEventListener("message-reads", refresh);
+    return () => window.removeEventListener("message-reads", refresh);
+  }, []);
   useEffect(() => {
     if (!route?.group) return;
     const found = groups.find((item) => item.id === route.group);
@@ -1570,6 +1840,7 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
       return;
     }
     let live = true;
+    markConversationRead(selected.id, true, selected.updated_at);
     Promise.all([getGroupDetails(selected.id), getGroupMessages(selected.id)])
       .then(([group, rows]) => {
         if (live) {
@@ -1630,6 +1901,13 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
   const byId = useMemo(
     () => Object.fromEntries(messages.map((item) => [item.id, item])),
     [messages],
+  );
+  const shownMessages = useMemo(
+    () =>
+      messages.filter((item) =>
+        item.content.toLowerCase().includes(messageQuery.toLowerCase()),
+      ),
+    [messages, messageQuery],
   );
   const visible = groups.filter((item) =>
     item.name?.toLowerCase().includes(query.toLowerCase()),
@@ -1721,12 +1999,20 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
         title="Messages"
         description="Direct and group conversations, requests, replies, editing, and voice calls."
         action={
-          <CreateGroupButton
-            user={user}
-            profile={profile}
-            onCreated={created}
-            onNotice={setNotice}
-          />
+          <div className="header-actions">
+            <button
+              className="button ghost"
+              onClick={() => markAllConversationsRead(groups, true)}
+            >
+              <CheckCheck /> Mark all read
+            </button>
+            <CreateGroupButton
+              user={user}
+              profile={profile}
+              onCreated={created}
+              onNotice={setNotice}
+            />
+          </div>
         }
       />
       <div className="message-mode-tabs">
@@ -1761,6 +2047,11 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                 <strong>{group.name}</strong>
                 <small>Group conversation</small>
               </span>
+              {conversationUnreadCount(group.id, true) > 0 && (
+                <b className="conversation-unread">
+                  {conversationUnreadCount(group.id, true)}
+                </b>
+              )}
             </button>
           ))}
         </aside>
@@ -1783,6 +2074,28 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                   </div>
                 </div>
                 <div className="group-chat-actions">
+                  <label className="conversation-search message-search">
+                    <Search />
+                    <input
+                      placeholder="Search messages"
+                      value={messageQuery}
+                      onChange={(event) => setMessageQuery(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    className="icon-button"
+                    title={
+                      isMuted(selected.id, true)
+                        ? "Unmute notifications"
+                        : "Mute notifications"
+                    }
+                    onClick={() => {
+                      setMuted(selected.id, true, !isMuted(selected.id, true));
+                      setReadRevision((value) => value + 1);
+                    }}
+                  >
+                    {isMuted(selected.id, true) ? <BellOff /> : <BellRing />}
+                  </button>
                   <button
                     className="icon-button call"
                     title="Start group call"
@@ -1813,7 +2126,7 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                 </div>
               </header>
               <div className="message-stream">
-                {messages.map((item) => {
+                {shownMessages.map((item) => {
                   const sender = profiles[item.sender_id];
                   const quoted = item.reply_to_id
                     ? byId[item.reply_to_id]

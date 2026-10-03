@@ -354,6 +354,28 @@ export async function cancelMeetup(id, userId) {
   );
 }
 
+export async function createUserReport(
+  reporterId,
+  reportedUserId,
+  reason,
+  context = "",
+) {
+  if (reporterId === reportedUserId)
+    throw new Error("You cannot report your own profile.");
+  return unwrap(
+    await supabase
+      .from("user_reports")
+      .insert({
+        reporter_id: reporterId,
+        reported_user_id: reportedUserId,
+        reason: String(reason).trim(),
+        context: String(context).trim() || null,
+      })
+      .select("id,status,created_at")
+      .single(),
+  );
+}
+
 export async function updateProfile(userId, fields) {
   return unwrap(
     await supabase

@@ -25,6 +25,10 @@ test("desktop voice calls include screen sharing and full room controls", () => 
   assert.match(page, /ScreenShareTile/);
   assert.match(page, /playCallEventSound\("join"\)/);
   assert.match(page, /playCallEventSound\("leave"\)/);
+  assert.match(page, /switchActiveDevice/);
+  assert.match(page, /Test mic/);
+  assert.match(page, /Push to talk/);
+  assert.match(page, /Hold Space/);
 });
 
 test("desktop notifications use the website sounds and ring globally", () => {

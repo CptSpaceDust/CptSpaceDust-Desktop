@@ -1,0 +1,164 @@
+import { useEffect, useState } from "react";
+import { CheckCircle2, CloudOff, Rocket, X } from "lucide-react";
+import { getMeetups } from "../lib/data";
+import { getPreferences, isQuietTime } from "../lib/preferences";
+import { playNotificationSound } from "../lib/sounds";
+import { communityDateTime } from "../lib/time";
+
+export function ConnectivityBanner() {
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const yes = () => setOnline(true),
+      no = () => setOnline(false);
+    addEventListener("online", yes);
+    addEventListener("offline", no);
+    return () => {
+      removeEventListener("online", yes);
+      removeEventListener("offline", no);
+    };
+  }, []);
+  if (online) return null;
+  return (
+    <div className="offline-banner" role="status">
+      <CloudOff /> You’re offline. Drafts are saved and the app will reconnect
+      automatically.
+    </div>
+  );
+}
+
+export function useMeetupReminders(userId) {
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    async function check() {
+      const settings = getPreferences();
+      if (!settings.meetupReminders || isQuietTime(settings)) return;
+      const rows = await getMeetups().catch(() => []);
+      const now = Date.now(),
+        windowMs = Number(settings.reminderMinutes) * 60000;
+      for (const item of rows.filter(
+        (row) => row.user_id === userId && row.status === "approved",
+      )) {
+        const start = communityDateTime(
+          item.meetup_date,
+          item.start_time || "00:00",
+        ).getTime();
+        const key = `meetup-reminder:${item.id}:${settings.reminderMinutes}`;
+        if (
+          start > now &&
+          start - now <= windowMs &&
+          !localStorage.getItem(key)
+        ) {
+          localStorage.setItem(key, "sent");
+          playNotificationSound();
+          window.desktop.notify(
+            "Meetup starting soon",
+            `${item.meetup_type || "Your meetup"} starts at ${new Date(start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
+            "MeetupCalendar.html",
+          );
+        }
+      }
+    }
+    check();
+    const timer = setInterval(() => alive && check(), 60000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [userId]);
+}
+
+export function InactivityLock({ enabled }) {
+  useEffect(() => {
+    let timer;
+    const reset = () => {
+      clearTimeout(timer);
+      const minutes = Number(getPreferences().inactivityLockMinutes);
+      if (enabled && minutes > 0)
+        timer = setTimeout(
+          () => window.desktop.appLock.lockNow(),
+          minutes * 60000,
+        );
+    };
+    const events = ["pointerdown", "keydown", "wheel", "touchstart"];
+    events.forEach((name) => addEventListener(name, reset, { passive: true }));
+    addEventListener("desktop-preferences", reset);
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((name) => removeEventListener(name, reset));
+      removeEventListener("desktop-preferences", reset);
+    };
+  }, [enabled]);
+  return null;
+}
+
+export function WhatsNew() {
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    window.desktop.updater.getState().then((state) => {
+      const current = state.currentVersion;
+      if (
+        current &&
+        current !== "development" &&
+        localStorage.getItem("whats-new-seen") !== current
+      )
+        setVersion(current);
+    });
+  }, []);
+  if (!version) return null;
+  const close = () => {
+    localStorage.setItem("whats-new-seen", version);
+    setVersion("");
+  };
+  return (
+    <div className="modal-backdrop">
+      <section
+        className="modal whats-new"
+        role="dialog"
+        aria-modal="true"
+        aria-label="What's new"
+      >
+        <div className="modal-header">
+          <div>
+            <span className="eyebrow">Version {version}</span>
+            <h2>What’s new in CptSpaceDust</h2>
+          </div>
+          <button className="icon-button" onClick={close}>
+            <X />
+          </button>
+        </div>
+        <div className="whats-new-hero">
+          <Rocket />
+          <div>
+            <strong>A smoother community orbit</strong>
+            <p>
+              Messages, notifications, meetup reminders, calls, privacy, and
+              connection recovery have all been upgraded.
+            </p>
+          </div>
+        </div>
+        <ul>
+          <li>
+            <CheckCircle2 /> Unread badges, chat search, mute controls, and
+            saved drafts
+          </li>
+          <li>
+            <CheckCircle2 /> Local-time meetup reminders and occupied-day
+            protection
+          </li>
+          <li>
+            <CheckCircle2 /> Better call devices, push-to-talk, and speaking
+            indicators
+          </li>
+          <li>
+            <CheckCircle2 /> Inactivity locking and member reporting
+          </li>
+        </ul>
+        <button className="button primary" onClick={close}>
+          Start exploring
+        </button>
+      </section>
+    </div>
+  );
+}

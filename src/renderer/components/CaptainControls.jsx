@@ -550,6 +550,92 @@ export default function CaptainControls({
               ))}
             </div>
             <div className="captain-moderation-overview-heading captain-moderation-permanent-heading">
+              <h3>
+                Member reports{" "}
+                <span>
+                  (
+                  {data.reports?.filter((item) => item.status === "open")
+                    .length || 0}{" "}
+                  open)
+                </span>
+              </h3>
+              <p>
+                Private concerns submitted by community members. Review context
+                before taking action.
+              </p>
+            </div>
+            <div className="captain-moderation-action-list">
+              {!data.reports?.length && <p>No member reports.</p>}
+              {data.reports?.map((report) => (
+                <article
+                  className="captain-moderation-action-card captain-report-card"
+                  key={report.id}
+                >
+                  <div>
+                    <strong>{name(report.reported_user_id)}</strong>
+                    <span className="captain-moderation-action-name">
+                      Reported by {name(report.reporter_id)} · {report.status}
+                    </span>
+                    <p>{report.reason}</p>
+                    {report.context && <small>{report.context}</small>}
+                    <small>
+                      {new Date(report.created_at).toLocaleString()}
+                    </small>
+                  </div>
+                  <div className="captain-actions">
+                    {report.status !== "reviewed" && (
+                      <button
+                        onClick={() =>
+                          run(
+                            () =>
+                              read(
+                                supabase
+                                  .from("user_reports")
+                                  .update({
+                                    status: "reviewed",
+                                    reviewed_at: new Date().toISOString(),
+                                    reviewed_by: user.id,
+                                  })
+                                  .eq("id", report.id)
+                                  .select("id")
+                                  .single(),
+                              ),
+                            "Report marked reviewed.",
+                          )
+                        }
+                      >
+                        Reviewed
+                      </button>
+                    )}
+                    {report.status !== "resolved" && (
+                      <button
+                        onClick={() =>
+                          run(
+                            () =>
+                              read(
+                                supabase
+                                  .from("user_reports")
+                                  .update({
+                                    status: "resolved",
+                                    reviewed_at: new Date().toISOString(),
+                                    reviewed_by: user.id,
+                                  })
+                                  .eq("id", report.id)
+                                  .select("id")
+                                  .single(),
+                              ),
+                            "Report resolved.",
+                          )
+                        }
+                      >
+                        Resolve
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="captain-moderation-overview-heading captain-moderation-permanent-heading">
               <h3>Permanent bans</h3>
               <p>
                 Blocked identities remain here after their accounts are deleted.

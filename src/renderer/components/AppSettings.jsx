@@ -1,7 +1,19 @@
 import { useEffect, useState } from "react";
-import { Download, LockKeyhole, RefreshCw, TimerReset } from "lucide-react";
+import {
+  Bell,
+  Download,
+  LockKeyhole,
+  RefreshCw,
+  TimerReset,
+  Volume2,
+} from "lucide-react";
 import { Field, PageHeader } from "./ui";
 import { UpdateVisual } from "./UpdateVisual";
+import {
+  defaultPreferences,
+  getPreferences,
+  updatePreferences,
+} from "../lib/preferences";
 
 export default function AppSettings() {
   const [settings, setSettings] = useState({
@@ -12,6 +24,7 @@ export default function AppSettings() {
   const [pin, setPin] = useState("");
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
+  const [preferences, setPreferences] = useState(defaultPreferences);
   const [update, setUpdate] = useState({
     status: "idle",
     currentVersion: "",
@@ -19,7 +32,11 @@ export default function AppSettings() {
   });
   useEffect(() => {
     window.desktop.appLock.getState().then(setSettings);
+    setPreferences(getPreferences());
   }, []);
+  function preference(key, value) {
+    setPreferences(updatePreferences({ [key]: value }));
+  }
   useEffect(() => {
     window.desktop.updater.getState().then(setUpdate);
     return window.desktop.updater.onState(setUpdate);
@@ -143,6 +160,112 @@ export default function AppSettings() {
           >
             Lock now
           </button>
+          <Field label="Lock after no activity">
+            <select
+              value={preferences.inactivityLockMinutes}
+              disabled={!settings.enabled}
+              onChange={(event) =>
+                preference("inactivityLockMinutes", Number(event.target.value))
+              }
+            >
+              <option value="0">Never</option>
+              <option value="1">1 minute</option>
+              <option value="5">5 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+            </select>
+          </Field>
+        </section>
+        <section className="panel settings-panel">
+          <div className="section-icon">
+            <Bell />
+          </div>
+          <h2>Notifications</h2>
+          <p>
+            Control desktop alerts, sounds, quiet hours, and meetup reminders.
+          </p>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.notificationSound}
+              onChange={(event) =>
+                preference("notificationSound", event.target.checked)
+              }
+            />
+            <span>Play notification sounds</span>
+          </label>
+          <Field label="Sound volume">
+            <div className="settings-range">
+              <Volume2 />
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={preferences.notificationVolume}
+                disabled={!preferences.notificationSound}
+                onChange={(event) =>
+                  preference("notificationVolume", Number(event.target.value))
+                }
+              />
+              <span>{preferences.notificationVolume}%</span>
+            </div>
+          </Field>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.quietHours}
+              onChange={(event) =>
+                preference("quietHours", event.target.checked)
+              }
+            />
+            <span>Use quiet hours</span>
+          </label>
+          {preferences.quietHours && (
+            <div className="form-grid">
+              <Field label="Quiet from">
+                <input
+                  type="time"
+                  value={preferences.quietStart}
+                  onChange={(event) =>
+                    preference("quietStart", event.target.value)
+                  }
+                />
+              </Field>
+              <Field label="Until">
+                <input
+                  type="time"
+                  value={preferences.quietEnd}
+                  onChange={(event) =>
+                    preference("quietEnd", event.target.value)
+                  }
+                />
+              </Field>
+            </div>
+          )}
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.meetupReminders}
+              onChange={(event) =>
+                preference("meetupReminders", event.target.checked)
+              }
+            />
+            <span>Remind me before approved meetups</span>
+          </label>
+          <Field label="Reminder time">
+            <select
+              value={preferences.reminderMinutes}
+              disabled={!preferences.meetupReminders}
+              onChange={(event) =>
+                preference("reminderMinutes", Number(event.target.value))
+              }
+            >
+              <option value="5">5 minutes before</option>
+              <option value="15">15 minutes before</option>
+              <option value="30">30 minutes before</option>
+              <option value="60">1 hour before</option>
+            </select>
+          </Field>
         </section>
         <section className="panel settings-panel">
           <div className="section-icon">
@@ -156,7 +279,9 @@ export default function AppSettings() {
           <div className="update-version">
             Installed version <strong>{update.currentVersion || "—"}</strong>
           </div>
-          {["downloading", "ready", "installing"].includes(update.status) && <UpdateVisual update={update} />}
+          {["downloading", "ready", "installing"].includes(update.status) && (
+            <UpdateVisual update={update} />
+          )}
           <p
             className={
               update.status === "error" ? "form-message" : "micro-copy"

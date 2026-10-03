@@ -2,6 +2,7 @@ import notificationUrl from "../assets/audio/notification.wav";
 import ringtoneUrl from "../assets/audio/voice-call-ringtone.mp3";
 import joinUrl from "../assets/audio/voice-call-join.mp3";
 import leaveUrl from "../assets/audio/voice-call-leave.mp3";
+import { getPreferences, isQuietTime } from "./preferences";
 
 let notificationAudio;
 let ringtoneAudio;
@@ -15,7 +16,14 @@ function audioElement(url, volume, loop = false) {
 }
 
 export function playNotificationSound() {
+  const settings = getPreferences();
+  if (!settings.notificationSound || isQuietTime(settings))
+    return Promise.resolve();
   notificationAudio ||= audioElement(notificationUrl, 0.82);
+  notificationAudio.volume = Math.max(
+    0,
+    Math.min(1, Number(settings.notificationVolume) / 100),
+  );
   notificationAudio.pause();
   notificationAudio.currentTime = 0;
   return notificationAudio.play().catch(() => {});

@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Flag,
   RefreshCw,
   UserRound,
 } from "lucide-react";
@@ -15,10 +16,12 @@ import {
   ErrorState,
   Field,
   Loading,
+  Modal,
   PageHeader,
 } from "../components/ui";
 import {
   cancelMeetup,
+  createUserReport,
   createMeetup,
   getMeetups,
   getProfile,
@@ -26,6 +29,7 @@ import {
   restrictionMessage,
 } from "../lib/data";
 import { useLoader } from "../lib/hooks";
+import { formatMeetupLocal, localTimeZoneName } from "../lib/time";
 
 const isOnline = (person) =>
   Boolean(
@@ -119,7 +123,9 @@ export function CrewPage({ onViewProfile }) {
   );
 }
 
-export function CrewProfilePage({ person, onBack }) {
+export function CrewProfilePage({ person, user, onBack }) {
+  const [reporting, setReporting] = useState(false);
+  const [reportMessage, setReportMessage] = useState("");
   const {
     data: profile,
     loading,
@@ -221,7 +227,65 @@ export function CrewProfilePage({ person, onBack }) {
             ))}
           </div>
         )}
+        {user?.id !== profile.id && (
+          <div className="profile-safety-actions">
+            <button className="button ghost" onClick={() => setReporting(true)}>
+              <Flag /> Report a concern
+            </button>
+            {reportMessage && (
+              <span className="form-message inline">{reportMessage}</span>
+            )}
+          </div>
+        )}
       </section>
+      {reporting && (
+        <Modal
+          title={`Report ${profile.username}`}
+          onClose={() => setReporting(false)}
+        >
+          <form
+            className="stack-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const form = new FormData(event.currentTarget);
+              try {
+                await createUserReport(
+                  user.id,
+                  profile.id,
+                  form.get("reason"),
+                  form.get("context"),
+                );
+                setReportMessage(
+                  "Your report was sent privately to the Captain.",
+                );
+                setReporting(false);
+              } catch (error) {
+                setReportMessage(error.message);
+              }
+            }}
+          >
+            <p className="modal-copy">
+              Reports are private. Describe the concern clearly so the Captain
+              can review it fairly.
+            </p>
+            <Field label="What happened?">
+              <textarea
+                name="reason"
+                rows="5"
+                minLength="10"
+                maxLength="1000"
+                required
+              />
+            </Field>
+            <Field label="Helpful context" hint="Optional">
+              <textarea name="context" rows="3" maxLength="1000" />
+            </Field>
+            <button className="button danger">
+              <Flag /> Send private report
+            </button>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -468,7 +532,7 @@ export function MeetupsPage({ user, profile }) {
       <PageHeader
         eyebrow="Meetup calendar"
         title="Plan time together"
-        description="All meetup times are shown in Mountain Time (GMT-7)."
+        description={`Requests use Mountain Time. Approved meetup times are also shown in your local zone (${localTimeZoneName()}).`}
         action={
           <button
             className="icon-button refresh-button"
@@ -624,6 +688,12 @@ export function MeetupsPage({ user, profile }) {
                           {Number(item.duration) === 1 ? "hour" : "hours"}
                         </span>
                       </div>
+                      {item.start_time && (
+                        <p className="meetup-local-time">
+                          Your time:{" "}
+                          {formatMeetupLocal(item.meetup_date, item.start_time)}
+                        </p>
+                      )}
                       <h3>{item.meetup_type || "VRChat meetup"}</h3>
                       <p>{item.message || "No additional notes."}</p>
                       <small>
