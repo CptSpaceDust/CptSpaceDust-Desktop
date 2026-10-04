@@ -8,6 +8,11 @@ export const defaultPreferences = Object.freeze({
   glassIntensity: "balanced",
   compactLayout: false,
   reduceMotion: false,
+  interfaceScale: 100,
+  highContrast: false,
+  strongFocus: false,
+  underlineLinks: false,
+  largeControls: false,
   enterToSend: true,
   desktopNotifications: true,
   messageNotifications: true,
@@ -31,6 +36,14 @@ export function applyPreferences(settings = getPreferences()) {
   root.dataset.glass = settings.glassIntensity || "balanced";
   root.dataset.density = settings.compactLayout ? "compact" : "comfortable";
   root.dataset.motion = settings.reduceMotion ? "reduced" : "full";
+  root.dataset.contrast = settings.highContrast ? "high" : "standard";
+  root.dataset.focus = settings.strongFocus ? "strong" : "standard";
+  root.dataset.links = settings.underlineLinks ? "underlined" : "standard";
+  root.dataset.controls = settings.largeControls ? "large" : "standard";
+  root.style.setProperty(
+    "--interface-scale",
+    String((Number(settings.interfaceScale) || 100) / 100),
+  );
   root.dataset.mayuLoaders = "on";
   return settings;
 }

@@ -66,6 +66,84 @@ export function CaptainSection({
   );
 }
 
+function CaptainReports({ reports = [], user, name, run, setTarget }) {
+  return (
+    <div className="captain-moderation-action-list captain-reports-list">
+      {!reports.length && <p>No member reports have been submitted.</p>}
+      {reports.map((report) => (
+        <article
+          className="captain-moderation-action-card captain-report-card"
+          key={report.id}
+        >
+          <div>
+            <strong>{name(report.reported_user_id)}</strong>
+            <span className="captain-moderation-action-name">
+              Reported by {name(report.reporter_id)} · {report.status}
+            </span>
+            <p>{report.reason}</p>
+            {report.context && <small>{report.context}</small>}
+            <small>{new Date(report.created_at).toLocaleString()}</small>
+          </div>
+          <div className="captain-actions">
+            <button onClick={() => setTarget(report.reported_user_id)}>
+              Select for moderation
+            </button>
+            {report.status === "open" && (
+              <button
+                onClick={() =>
+                  run(
+                    () =>
+                      read(
+                        supabase
+                          .from("user_reports")
+                          .update({
+                            status: "reviewed",
+                            reviewed_at: new Date().toISOString(),
+                            reviewed_by: user.id,
+                          })
+                          .eq("id", report.id)
+                          .select("id")
+                          .single(),
+                      ),
+                    "Report marked reviewed.",
+                  )
+                }
+              >
+                Mark reviewed
+              </button>
+            )}
+            {report.status !== "resolved" && (
+              <button
+                className="approve"
+                onClick={() =>
+                  run(
+                    () =>
+                      read(
+                        supabase
+                          .from("user_reports")
+                          .update({
+                            status: "resolved",
+                            reviewed_at: new Date().toISOString(),
+                            reviewed_by: user.id,
+                          })
+                          .eq("id", report.id)
+                          .select("id")
+                          .single(),
+                      ),
+                    "Report resolved.",
+                  )
+                }
+              >
+                Resolve
+              </button>
+            )}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default function CaptainControls({
   data,
   user,
@@ -87,7 +165,15 @@ export default function CaptainControls({
   const person = (id) => data.crew?.find((item) => item.id === id);
   const name = (id) => person(id)?.username || "Former member";
   const pending =
-    data.meetups?.filter((item) => item.status === "pending") || [];
+    data.meetups?.filter(
+      (item) =>
+        item.status === "pending" &&
+        (!item.with_user_id ||
+          person(item.with_user_id)?.rank?.toLowerCase() === "captain"),
+    ) || [];
+  const requiresCaptainApproval = (item) =>
+    !item.with_user_id ||
+    person(item.with_user_id)?.rank?.toLowerCase() === "captain";
   const selectedRestrictions =
     data.restrictions?.filter((item) => item.user_id === target) || [];
   function ask(text, input = true) {
@@ -298,6 +384,15 @@ export default function CaptainControls({
                   .map((item) => (
                     <article className="meetup-request-card" key={item.id}>
                       <h3>{name(item.user_id)}</h3>
+                      <p>
+                        👥 With{" "}
+                        {item.with_user_id
+                          ? name(item.with_user_id)
+                          : "the Captain"}
+                      </p>
+                      {item.with_user_id && (
+                        <p>✉️ Invitation {item.invitee_status || "pending"}</p>
+                      )}
                       <p>📅 {item.meetup_date}</p>
                       <p>
                         ⏰{" "}
@@ -310,22 +405,40 @@ export default function CaptainControls({
                       </p>
                       <p>⌛ {item.duration} hour(s)</p>
                       <p>💬 {item.message || "No message"}</p>
-                      {status === "pending" && (
-                        <div className="captain-actions">
-                          <button
-                            className="approve"
-                            onClick={() => decideMeetup(item, "approved")}
-                          >
-                            ✅ Approve
-                          </button>
-                          <button
-                            className="deny"
-                            onClick={() => decideMeetup(item, "denied")}
-                          >
-                            ❌ Deny
-                          </button>
-                        </div>
-                      )}
+                      {status === "pending" &&
+                        requiresCaptainApproval(item) && (
+                          <div className="captain-actions">
+                            <button
+                              className="approve"
+                              disabled={
+                                Boolean(item.with_user_id) &&
+                                item.invitee_status !== "accepted"
+                              }
+                              title={
+                                item.with_user_id &&
+                                item.invitee_status !== "accepted"
+                                  ? "Waiting for the invited member to accept"
+                                  : "Approve meetup"
+                              }
+                              onClick={() => decideMeetup(item, "approved")}
+                            >
+                              ✅ Approve
+                            </button>
+                            <button
+                              className="deny"
+                              onClick={() => decideMeetup(item, "denied")}
+                            >
+                              ❌ Deny
+                            </button>
+                          </div>
+                        )}
+                      {status === "pending" &&
+                        !requiresCaptainApproval(item) && (
+                          <p className="micro-copy">
+                            Waiting for the invited crew member. This meetup
+                            will confirm automatically when they accept.
+                          </p>
+                        )}
                     </article>
                   ))}
               </div>
@@ -426,6 +539,26 @@ export default function CaptainControls({
             user={user}
             run={run}
             onNotice={onNotice}
+          />
+        </CaptainSection>
+        <CaptainSection
+          id="reports-management"
+          icon="🚩"
+          title="Member Reports"
+          description="Review private reports and open the reported member’s moderation controls."
+          status={`${data.reports?.filter((item) => item.status === "open").length || 0} Open`}
+          tone={
+            data.reports?.some((item) => item.status === "open")
+              ? "yellow"
+              : "green"
+          }
+        >
+          <CaptainReports
+            reports={data.reports}
+            user={user}
+            name={name}
+            run={run}
+            setTarget={setTarget}
           />
         </CaptainSection>
         <CaptainSection
@@ -546,92 +679,6 @@ export default function CaptainControls({
                   >
                     Manage
                   </button>
-                </article>
-              ))}
-            </div>
-            <div className="captain-moderation-overview-heading captain-moderation-permanent-heading">
-              <h3>
-                Member reports{" "}
-                <span>
-                  (
-                  {data.reports?.filter((item) => item.status === "open")
-                    .length || 0}{" "}
-                  open)
-                </span>
-              </h3>
-              <p>
-                Private concerns submitted by community members. Review context
-                before taking action.
-              </p>
-            </div>
-            <div className="captain-moderation-action-list">
-              {!data.reports?.length && <p>No member reports.</p>}
-              {data.reports?.map((report) => (
-                <article
-                  className="captain-moderation-action-card captain-report-card"
-                  key={report.id}
-                >
-                  <div>
-                    <strong>{name(report.reported_user_id)}</strong>
-                    <span className="captain-moderation-action-name">
-                      Reported by {name(report.reporter_id)} · {report.status}
-                    </span>
-                    <p>{report.reason}</p>
-                    {report.context && <small>{report.context}</small>}
-                    <small>
-                      {new Date(report.created_at).toLocaleString()}
-                    </small>
-                  </div>
-                  <div className="captain-actions">
-                    {report.status !== "reviewed" && (
-                      <button
-                        onClick={() =>
-                          run(
-                            () =>
-                              read(
-                                supabase
-                                  .from("user_reports")
-                                  .update({
-                                    status: "reviewed",
-                                    reviewed_at: new Date().toISOString(),
-                                    reviewed_by: user.id,
-                                  })
-                                  .eq("id", report.id)
-                                  .select("id")
-                                  .single(),
-                              ),
-                            "Report marked reviewed.",
-                          )
-                        }
-                      >
-                        Reviewed
-                      </button>
-                    )}
-                    {report.status !== "resolved" && (
-                      <button
-                        onClick={() =>
-                          run(
-                            () =>
-                              read(
-                                supabase
-                                  .from("user_reports")
-                                  .update({
-                                    status: "resolved",
-                                    reviewed_at: new Date().toISOString(),
-                                    reviewed_by: user.id,
-                                  })
-                                  .eq("id", report.id)
-                                  .select("id")
-                                  .single(),
-                              ),
-                            "Report resolved.",
-                          )
-                        }
-                      >
-                        Resolve
-                      </button>
-                    )}
-                  </div>
                 </article>
               ))}
             </div>

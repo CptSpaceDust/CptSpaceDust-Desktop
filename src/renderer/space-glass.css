@@ -1206,6 +1206,36 @@ input[type="file"]::file-selector-button {
   }
 }
 
+/* Availability colors intentionally stay semantic across every glass level. */
+.calendar-day.offline,
+.calendar-day.offline:disabled {
+  opacity: 1;
+  border-color: rgba(255, 105, 120, 0.62);
+  background: linear-gradient(
+    145deg,
+    rgba(184, 45, 65, 0.34),
+    rgba(90, 20, 38, 0.28)
+  );
+}
+.calendar-day.partial {
+  border-color: rgba(255, 161, 77, 0.62);
+  background: linear-gradient(
+    145deg,
+    rgba(195, 94, 25, 0.31),
+    rgba(92, 48, 18, 0.26)
+  );
+}
+.calendar-day.scheduled,
+.calendar-day.scheduled:disabled {
+  opacity: 1;
+  border-color: rgba(255, 215, 84, 0.64);
+  background: linear-gradient(
+    145deg,
+    rgba(178, 137, 21, 0.31),
+    rgba(87, 68, 15, 0.25)
+  );
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .sidebar,
   .topbar,

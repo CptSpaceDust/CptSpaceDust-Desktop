@@ -46,6 +46,8 @@ test("packaged app is wired to publish and consume GitHub releases", () => {
   assert.match(workflow, /gh release upload/);
   assert.match(workflow, /dist\/latest\.yml/);
   assert.match(workflow, /CrewDeck-Setup-\$version\.exe/);
+  assert.match(workflow, /get-release-notes\.ps1/);
+  assert.match(workflow, /--notes-file "release-notes\.md"/);
   assert.match(main, /DEEP_LINK_SCHEMES = \["crewdeck", "cptspacedust"\]/);
   assert.match(main, /app\.setPath\("userData", crewDeckUserData\)/);
 });

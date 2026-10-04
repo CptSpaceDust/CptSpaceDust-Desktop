@@ -38,7 +38,9 @@ export function useMeetupReminders(userId) {
       const now = Date.now(),
         windowMs = Number(settings.reminderMinutes) * 60000;
       for (const item of rows.filter(
-        (row) => row.user_id === userId && row.status === "approved",
+        (row) =>
+          (row.user_id === userId || row.with_user_id === userId) &&
+          row.status === "approved",
       )) {
         const start = communityDateTime(
           item.meetup_date,
@@ -146,8 +148,9 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                A polished CrewDeck startup sequence with an assembling logo,
-                connected crew nodes, glass lighting, and loading progress.
+                Person-to-person meetup invitations, configurable off days,
+                clearer availability colors, a Captain reports workspace, and
+                new accessibility controls.
               </p>
             </div>
           </article>
@@ -156,9 +159,9 @@ export function WhatsNew() {
             <div>
               <strong>Changed</strong>
               <p>
-                Sign in, account creation, forgot password, and password reset
-                now use a clearer, consistent layout with improved spacing and
-                guidance.
+                Crew meetups confirm when the invited member accepts. Captain
+                approval is only needed for meetups involving the Captain, and
+                the startup sequence now appears reliably at launch.
               </p>
             </div>
           </article>
@@ -167,8 +170,9 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                No community features were removed. Character artwork was
-                removed from the initial startup screen.
+                In-app account creation and the extra Windows notification
+                availability notice. Sign in with your existing CptSpaceDust
+                account instead.
               </p>
             </div>
           </article>

@@ -53,5 +53,5 @@ test("What’s Changed contains Added, Changed, and Removed summaries", () => {
   assert.match(source, /<strong>Added<\/strong>/);
   assert.match(source, /<strong>Changed<\/strong>/);
   assert.match(source, /<strong>Removed<\/strong>/);
-  assert.match(source, /No community features were\s+removed\./);
+  assert.match(source, /In-app account creation/);
 });

@@ -29,9 +29,12 @@ jobs:
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
           $tag = "v$version"
+          ./scripts/get-release-notes.ps1 -Version $version -OutputPath "release-notes.md"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title $version --notes "CrewDeck $version"
+            gh release create $tag --title "CrewDeck $version" --notes-file "release-notes.md"
+          } else {
+            gh release edit $tag --title "CrewDeck $version" --notes-file "release-notes.md"
           }
           Copy-Item "dist/CrewDeck Setup $version.exe" "dist/CrewDeck-Setup-$version.exe"
           Copy-Item "dist/CrewDeck Setup $version.exe.blockmap" "dist/CrewDeck-Setup-$version.exe.blockmap"

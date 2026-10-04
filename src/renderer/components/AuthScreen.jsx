@@ -8,7 +8,6 @@ import {
   Mail,
   ShieldCheck,
   Sparkles,
-  UserRound,
 } from "lucide-react";
 import { HCAPTCHA_HOST, HCAPTCHA_SITE_KEY, supabase } from "../lib/supabase";
 import BrandMark from "./BrandMark";
@@ -18,55 +17,18 @@ export default function AuthScreen({
   onModeChange,
   onMfaVerified,
 }) {
-  const [mode, setModeState] = useState(initialMode);
+  const [mode, setModeState] = useState(
+    initialMode === "mfa" ? "mfa" : "login",
+  );
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState("");
-  const [usernameAvailable, setUsernameAvailable] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaChallenge, setMfaChallenge] = useState(null);
   const captchaRef = useRef(null);
-
-  useEffect(() => {
-    if (mode !== "signup" || username.trim().length < 3) {
-      setUsernameAvailable(false);
-      setUsernameStatus(
-        username ? "Username must be at least 3 characters." : "",
-      );
-      return;
-    }
-    const value = username.trim();
-    const timer = setTimeout(async () => {
-      const { data: allowed, error: allowedError } = await supabase.rpc(
-        "signup_identity_allowed",
-        { candidate_email: email.trim(), candidate_username: value },
-      );
-      if (username.trim() !== value) return;
-      if (allowedError || allowed === false) {
-        setUsernameAvailable(false);
-        setUsernameStatus("This account name cannot be used.");
-        return;
-      }
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("username")
-        .ilike("username", value);
-      if (error || data?.length) {
-        setUsernameAvailable(false);
-        setUsernameStatus("Username already taken.");
-      } else {
-        setUsernameAvailable(true);
-        setUsernameStatus("Username available.");
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [mode, username, email]);
 
   useEffect(() => {
     if (mode !== "mfa") return;
@@ -124,55 +86,9 @@ export default function AuthScreen({
       return;
     }
     if (!captchaToken) return setMessage("Complete the captcha to continue.");
-    if (mode === "signup" && !usernameAvailable)
-      return setMessage("Please choose an available username.");
-    if (mode === "signup" && password !== confirm)
-      return setMessage("Those passwords do not match.");
     setBusy(true);
     let result;
-    if (mode === "signup") {
-      const { data: allowed, error: allowedError } = await supabase.rpc(
-        "signup_identity_allowed",
-        { candidate_email: email.trim(), candidate_username: username.trim() },
-      );
-      if (allowedError || allowed === false) {
-        setBusy(false);
-        return setMessage("This email or username cannot be used.");
-      }
-      result = await supabase.auth.signUp({
-        email,
-        password,
-        options: { captchaToken, data: { username: username.trim() } },
-      });
-      if (!result.error && result.data.user) {
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: result.data.user.id,
-          username: username.trim(),
-          rank: "New Member",
-          joined: new Date().getFullYear(),
-          theme: "default",
-          avatar: null,
-          bio: "New explorer has entered space!",
-          birthday: null,
-          show_age: true,
-          show_birthday: false,
-          favorite_game: "Not Set",
-          discord: "",
-          youtube: "",
-          twitch: "",
-          vrchat: "",
-          steam: "",
-          online: false,
-          last_seen: null,
-          badges: ["First time in space!"],
-        });
-        if (
-          profileError &&
-          !profileError.message?.toLowerCase().includes("duplicate")
-        )
-          result = { ...result, error: profileError };
-      }
-    } else {
+    {
       try {
         const response = await fetch(
           "https://houyownfnnqgvhiokwow.supabase.co/functions/v1/log-login-attempt",
@@ -226,10 +142,6 @@ export default function AuthScreen({
     captchaRef.current?.resetCaptcha();
     setCaptchaToken("");
     if (result.error) setMessage(result.error.message);
-    else if (mode === "signup")
-      setMessage(
-        "Account created. Check your email if confirmation is required.",
-      );
   }
 
   const modeDetails = {
@@ -238,12 +150,6 @@ export default function AuthScreen({
       title: "Sign in to CrewDeck",
       copy: "Your messages, meetups, and community are right where you left them.",
       icon: Mail,
-    },
-    signup: {
-      eyebrow: "Join the crew",
-      title: "Create your account",
-      copy: "Set up the account you’ll use everywhere in the community.",
-      icon: UserRound,
     },
     reset: {
       eyebrow: "Account recovery",
@@ -307,24 +213,6 @@ export default function AuthScreen({
               Back to sign in
             </button>
           )}
-          {mode !== "reset" && mode !== "mfa" && (
-            <div className="auth-mode-switch" aria-label="Account action">
-              <button
-                className={mode === "login" ? "active" : ""}
-                type="button"
-                onClick={() => setMode("login")}
-              >
-                Sign in
-              </button>
-              <button
-                className={mode === "signup" ? "active" : ""}
-                type="button"
-                onClick={() => setMode("signup")}
-              >
-                Create account
-              </button>
-            </div>
-          )}
           <header className="auth-heading">
             <div className="auth-icon">
               <ModeIcon />
@@ -335,6 +223,18 @@ export default function AuthScreen({
               <p className="auth-mode-copy">{details.copy}</p>
             </div>
           </header>
+          {mode === "login" && (
+            <div className="auth-account-note">
+              <ShieldCheck />
+              <span>
+                <strong>Use your CptSpaceDust account</strong>
+                <small>
+                  Sign in with the same email and password you use on the
+                  CptSpaceDust website.
+                </small>
+              </span>
+            </div>
+          )}
           {mode === "reset" && (
             <div className="auth-recovery-note">
               <Sparkles />
@@ -367,27 +267,6 @@ export default function AuthScreen({
               </label>
             ) : (
               <>
-                {mode === "signup" && (
-                  <label className="field">
-                    <span>Username</span>
-                    <input
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      minLength="3"
-                      maxLength="24"
-                      placeholder="Choose a crew name"
-                      autoComplete="username"
-                      required
-                    />
-                    {usernameStatus && (
-                      <small
-                        className={usernameAvailable ? "field-success" : ""}
-                      >
-                        {usernameStatus}
-                      </small>
-                    )}
-                  </label>
-                )}
                 <label className="field">
                   <span>Email</span>
                   <input
@@ -421,11 +300,7 @@ export default function AuthScreen({
                           onChange={(e) => setPassword(e.target.value)}
                           minLength="6"
                           placeholder="At least 6 characters"
-                          autoComplete={
-                            mode === "signup"
-                              ? "new-password"
-                              : "current-password"
-                          }
+                          autoComplete="current-password"
                           required
                         />
                         <button
@@ -438,45 +313,7 @@ export default function AuthScreen({
                           {showPassword ? <EyeOff /> : <Eye />}
                         </button>
                       </div>
-                      {mode === "signup" && (
-                        <div
-                          className="password-strength"
-                          data-score={Math.min(
-                            4,
-                            [
-                              password.length >= 8,
-                              /\d/.test(password),
-                              /[A-Z]/.test(password),
-                              /[^A-Za-z0-9]/.test(password),
-                            ].filter(Boolean).length,
-                          )}
-                        >
-                          <i />
-                          <i />
-                          <i />
-                          <i />
-                          <small>
-                            {password.length < 6
-                              ? "Use 6 or more characters"
-                              : "Add a mix of letters, numbers, and symbols"}
-                          </small>
-                        </div>
-                      )}
                     </div>
-                    {mode === "signup" && (
-                      <label className="field">
-                        <span>Confirm password</span>
-                        <input
-                          type="password"
-                          value={confirm}
-                          onChange={(e) => setConfirm(e.target.value)}
-                          minLength="6"
-                          placeholder="Type it again"
-                          autoComplete="new-password"
-                          required
-                        />
-                      </label>
-                    )}
                     <div className="captcha-wrap">
                       <div className="captcha-label">
                         <ShieldCheck />
@@ -512,37 +349,21 @@ export default function AuthScreen({
             <button className="button primary wide" disabled={busy}>
               {busy
                 ? "Connecting…"
-                : mode === "signup"
-                  ? "Create account"
-                  : mode === "reset"
-                    ? "Send reset email"
-                    : mode === "mfa"
-                      ? "Verify code"
-                      : "Sign in"}
+                : mode === "reset"
+                  ? "Send reset email"
+                  : mode === "mfa"
+                    ? "Verify code"
+                    : "Sign in"}
             </button>
           </form>
-          <div className="auth-links">
-            {mode === "login" && (
-              <span>
-                New to CrewDeck?{" "}
-                <button onClick={() => setMode("signup")}>
-                  Create account
-                </button>
-              </span>
-            )}
-            {mode === "signup" && (
-              <span>
-                Already have an account?{" "}
-                <button onClick={() => setMode("login")}>Sign in</button>
-              </span>
-            )}
-            {mode === "reset" && (
+          {mode === "reset" && (
+            <div className="auth-links">
               <span>
                 Remembered your password?{" "}
                 <button onClick={() => setMode("login")}>Sign in</button>
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </section>
     </main>

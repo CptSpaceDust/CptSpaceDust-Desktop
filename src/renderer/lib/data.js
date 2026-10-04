@@ -304,19 +304,74 @@ export async function getMeetups() {
   );
 }
 
+export async function getMeetupAvailability() {
+  return unwrap(
+    await supabase
+      .from("meetup_availability_blocks")
+      .select("id,user_id,block_date,all_day,start_time,end_time")
+      .gte("block_date", new Date().toISOString().slice(0, 10))
+      .order("block_date")
+      .order("start_time"),
+  );
+}
+
+export async function addMeetupAvailability(userId, fields) {
+  return unwrap(
+    await supabase
+      .from("meetup_availability_blocks")
+      .insert({
+        user_id: userId,
+        block_date: fields.block_date,
+        all_day: Boolean(fields.all_day),
+        start_time: fields.all_day ? null : fields.start_time,
+        end_time: fields.all_day ? null : fields.end_time,
+      })
+      .select()
+      .single(),
+  );
+}
+
+export async function deleteMeetupAvailability(id, userId) {
+  return unwrap(
+    await supabase
+      .from("meetup_availability_blocks")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId),
+  );
+}
+
+export async function respondToMeetup(meetupId, response) {
+  return unwrap(
+    await supabase.rpc("respond_to_meetup_invitation", {
+      target_meetup_id: meetupId,
+      response,
+    }),
+  );
+}
+
 export async function createMeetup(userId, fields) {
   if (!fields.meetup_date) throw new Error("Please select an available day.");
   const occupied = unwrap(
     await supabase
       .from("meetup_requests")
-      .select("id")
+      .select("id,user_id,with_user_id")
       .eq("meetup_date", fields.meetup_date)
       .eq("status", "approved")
-      .limit(1),
+      .limit(100),
   );
-  if (occupied.length)
+  if (
+    (!fields.with_user_id && occupied.length) ||
+    occupied.some(
+      (item) =>
+        [item.user_id, item.with_user_id].includes(userId) ||
+        [item.user_id, item.with_user_id].includes(fields.with_user_id),
+    )
+  )
     throw new Error(
-      "That day is already occupied. Please choose another date.",
+      fields.with_user_id
+        ? "One of you already has an approved meetup that day."
+        : "That day is already occupied. Please choose another date.",
     );
   const duplicate = unwrap(
     await supabase

@@ -316,6 +316,29 @@ export function IntroductionsPage({ user, profile }) {
         }
       />
       {message && <p className="form-message">{message}</p>}
+      <section
+        className="panel ideas-guide"
+        aria-label="How the ideas board works"
+      >
+        <div>
+          <strong>1. Share</strong>
+          <span>Explain the problem and the change you want.</span>
+        </div>
+        <div>
+          <strong>2. Vote</strong>
+          <span>Vote for ideas you would actually use.</span>
+        </div>
+        <div>
+          <strong>3. Follow</strong>
+          <span>Status labels show what is being reviewed or built.</span>
+        </div>
+        <div className="ideas-status-key">
+          <span>Pending</span>
+          <span>Considering</span>
+          <span>Working On</span>
+          <span>Completed</span>
+        </div>
+      </section>
       {loading ? (
         <Loading />
       ) : error ? (
@@ -495,6 +518,12 @@ export function IdeasPage({ user, profile }) {
         <ErrorState message={error} retry={reload} />
       ) : (
         <div className="feed">
+          {!items.length && (
+            <Empty
+              title="No ideas match this view"
+              body="Try another filter or share the first idea here."
+            />
+          )}
           {items.map((item) => (
             <article className="panel idea-card" key={item.id}>
               <div className="vote-column">
@@ -1094,19 +1123,19 @@ export function SupportPage({ profile, onUpdated }) {
       id: "cadet",
       name: "Cadet",
       price: "$2.99",
-      features: ["Supporter badge", "Name on supporter wall"],
+      features: ["Community hosting and services", "Routine maintenance costs"],
     },
     {
       id: "crewmate",
       name: "Crewmate",
       price: "$5.99",
-      features: ["Everything in Cadet", "Custom profile theme"],
+      features: ["App and website improvements", "Community tools and events"],
     },
     {
       id: "officer",
       name: "Officer",
       price: "$9.99",
-      features: ["Everything in Crewmate", "Officer recognition"],
+      features: ["Larger future projects", "Extra room for community growth"],
     },
   ];
   async function act(tier) {
@@ -1130,7 +1159,7 @@ export function SupportPage({ profile, onUpdated }) {
   }
   async function cancel() {
     const approved = await confirmInApp(
-      "Your current support benefits will end immediately.",
+      "Your monthly support will end immediately.",
       {
         title: "Cancel your support subscription?",
         confirmLabel: "Cancel support",
@@ -1153,7 +1182,7 @@ export function SupportPage({ profile, onUpdated }) {
     <div className="page">
       <PageHeader
         eyebrow="Support the Captain"
-        title="Fuel the next mission"
+        title="Help keep the community running"
         description={
           current
             ? `Your current support tier is ${current}.`
@@ -1174,6 +1203,7 @@ export function SupportPage({ profile, onUpdated }) {
               {tier.price}
               <small>/ month</small>
             </div>
+            <h3 className="support-impact-title">What this helps cover</h3>
             <ul>
               {tier.features.map((f) => (
                 <li key={f}>

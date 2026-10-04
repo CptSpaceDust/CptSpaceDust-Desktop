@@ -277,6 +277,19 @@ export default function AppSettings() {
               <option value="deep">Deep</option>
             </select>
           </Field>
+          <Field label="Interface size">
+            <select
+              value={preferences.interfaceScale}
+              onChange={(event) =>
+                preference("interfaceScale", Number(event.target.value))
+              }
+            >
+              <option value="90">Small · 90%</option>
+              <option value="100">Default · 100%</option>
+              <option value="110">Large · 110%</option>
+              <option value="120">Extra large · 120%</option>
+            </select>
+          </Field>
           <label className="check-field">
             <input
               type="checkbox"
@@ -296,6 +309,46 @@ export default function AppSettings() {
               }
             />
             <span>Reduce motion and animation</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.highContrast}
+              onChange={(event) =>
+                preference("highContrast", event.target.checked)
+              }
+            />
+            <span>Increase text and border contrast</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.strongFocus}
+              onChange={(event) =>
+                preference("strongFocus", event.target.checked)
+              }
+            />
+            <span>Use stronger keyboard focus outlines</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.underlineLinks}
+              onChange={(event) =>
+                preference("underlineLinks", event.target.checked)
+              }
+            />
+            <span>Underline links</span>
+          </label>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={preferences.largeControls}
+              onChange={(event) =>
+                preference("largeControls", event.target.checked)
+              }
+            />
+            <span>Use larger buttons and form controls</span>
           </label>
         </section>
         <section className="panel settings-panel">
@@ -413,23 +466,17 @@ export default function AppSettings() {
             Alerts and incoming-call sounds stay active while the app is locked.
             You can optionally hide their details until you enter your PIN.
           </p>
-          <div
-            className={`notification-health ${notificationStatus?.supported ? "ready" : "blocked"}`}
-          >
-            <Bell />
-            <span>
-              <strong>
-                {notificationStatus?.supported
-                  ? "Windows notifications are available"
-                  : "Windows notifications are unavailable"}
-              </strong>
-              <small>
-                {notificationStatus?.supported
-                  ? "Send a test to confirm they are visible in Windows."
-                  : "Check Windows notification permissions for CrewDeck."}
-              </small>
-            </span>
-          </div>
+          {notificationStatus && !notificationStatus.supported && (
+            <div className="notification-health blocked">
+              <Bell />
+              <span>
+                <strong>Windows notifications are unavailable</strong>
+                <small>
+                  Check Windows notification permissions for CrewDeck.
+                </small>
+              </span>
+            </div>
+          )}
           <div className="settings-toggle-grid">
             <label className="check-field">
               <input

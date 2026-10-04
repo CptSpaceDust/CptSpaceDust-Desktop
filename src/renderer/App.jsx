@@ -26,8 +26,8 @@ import {
   CrewPage,
   CrewProfilePage,
   GuidelinesPage,
-  MeetupsPage,
 } from "./pages/EnhancedCommunityPages";
+import MeetupsPage from "./pages/MeetupsPage";
 import MessagesPage from "./pages/MessagesPageV2";
 import NotificationsPage from "./pages/NotificationsPage";
 import { useMessageAlerts } from "./lib/messageAlerts";
@@ -118,6 +118,7 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [page, setPage] = useState("introductions");
   const [loading, setLoading] = useState(true);
+  const [startupMinimumElapsed, setStartupMinimumElapsed] = useState(false);
   const [recovery, setRecovery] = useState(false);
   const [initialPerson, setInitialPerson] = useState(null);
   const [viewedPerson, setViewedPerson] = useState(null);
@@ -131,6 +132,10 @@ export default function App() {
   const incomingCallRef = useRef(null);
   useMessageAlerts(mfaRequired ? null : session?.user?.id);
   useMeetupReminders(mfaRequired ? null : session?.user?.id);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setStartupMinimumElapsed(true), 2600);
+    return () => window.clearTimeout(timer);
+  }, []);
   useEffect(() => {
     const refresh = () => setMessageUnread(totalMessageUnread());
     window.addEventListener("message-reads", refresh);
@@ -547,7 +552,7 @@ export default function App() {
     messageRoute,
     viewedPerson,
   ]);
-  if (lock.loading || loading)
+  if (!startupMinimumElapsed || lock.loading || loading)
     return <StartupScreen label="Preparing your private community…" />;
   if (lock.locked) return <LockScreen />;
   if (recovery)

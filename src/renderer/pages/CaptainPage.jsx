@@ -26,11 +26,13 @@ export default function CaptainPage({ user, profile }) {
       const queries = {
         crew: supabase
           .from("profiles")
-          .select("id,username,avatar")
+          .select("id,username,avatar,rank")
           .order("username"),
         meetups: supabase
           .from("meetup_requests")
-          .select("id,user_id,meetup_date,start_time,duration,message,status")
+          .select(
+            "id,user_id,with_user_id,invitee_status,meetup_date,start_time,duration,message,meetup_type,status",
+          )
           .in("status", ["pending", "approved"])
           .order("meetup_date"),
         restrictions: supabase
