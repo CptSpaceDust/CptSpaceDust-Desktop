@@ -572,6 +572,11 @@ export default function AppSettings() {
             />
             <span>Launch CptSpaceDust with Windows</span>
           </label>
+          <p className="micro-copy">
+            Closing the window keeps CptSpaceDust running in the Windows
+            notification area so messages and alerts can still arrive. Use the
+            tray icon’s Quit option to close it completely.
+          </p>
         </section>
         <section className="panel settings-panel">
           <div className="section-icon">

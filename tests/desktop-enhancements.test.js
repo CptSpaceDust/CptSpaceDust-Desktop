@@ -74,6 +74,24 @@ test("notifications stay synchronized and app flows avoid native popups", () => 
   assert.match(dialog, /<Modal/);
 });
 
+test("closing the desktop window keeps realtime notifications running in the tray", () => {
+  const main = read("src", "main.js");
+  const settings = read("src", "renderer", "components", "AppSettings.jsx");
+
+  assert.match(main, /new Tray\(ICON_PATH\)/);
+  assert.match(main, /label: "Open CptSpaceDust"/);
+  assert.match(main, /label: "Quit CptSpaceDust"/);
+  assert.match(main, /mainWindow\.on\("close", \(event\) =>/);
+  assert.match(
+    main,
+    /event\.preventDefault\(\);\s+lockApp\(\);\s+mainWindow\.hide\(\);/,
+  );
+  assert.match(main, /backgroundThrottling: false/);
+  assert.match(main, /app\.on\("before-quit"/);
+  assert.doesNotMatch(main, /window-all-closed", \(\) => app\.quit/);
+  assert.match(settings, /Windows\s+notification area/);
+});
+
 test("community meetup times convert into a real instant", async () => {
   const { communityDateTime } = await import("../src/renderer/lib/time.js");
   const winter = communityDateTime("2026-01-10", "12:00");

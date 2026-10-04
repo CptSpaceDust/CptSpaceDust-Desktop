@@ -142,8 +142,8 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                More useful settings, clearer presence indicators, and a branded
-                Setup experience.
+                A Windows notification-area icon with quick actions to open,
+                lock, or fully quit CptSpaceDust.
               </p>
             </div>
           </article>
@@ -152,8 +152,8 @@ export function WhatsNew() {
             <div>
               <strong>Changed</strong>
               <p>
-                Updates now use the Mayu typing scene, and notification counts
-                stay synchronized with the activity feed.
+                Closing the window now keeps messages, sounds, and desktop
+                notifications running in the background.
               </p>
             </div>
           </article>
@@ -162,8 +162,9 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                Native browser popups were replaced with consistent in-app
-                dialogs. No community features were removed.
+                The old behavior that fully exited CptSpaceDust whenever the
+                window’s close button was used. No community features were
+                removed.
               </p>
             </div>
           </article>

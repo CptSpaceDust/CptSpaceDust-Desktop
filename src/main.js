@@ -3,11 +3,13 @@ const {
   BrowserWindow,
   desktopCapturer,
   ipcMain,
+  Menu,
   net,
   Notification,
   protocol,
   session,
   shell,
+  Tray,
 } = require("electron");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -26,6 +28,8 @@ if (process.platform === "win32")
   app.setAppUserModelId("com.cptspacedust.community");
 
 let mainWindow;
+let tray;
+let isQuitting = false;
 let lockStore;
 let locked = false;
 let blurTimer;
@@ -132,6 +136,7 @@ function sendLockState() {
     locked,
     ...lockStore.publicSettings(),
   });
+  updateTrayMenu();
 }
 
 function lockApp() {
@@ -145,6 +150,51 @@ function scheduleLock() {
   clearTimeout(blurTimer);
   if (locked || !lockStore?.settings.enabled) return;
   blurTimer = setTimeout(lockApp, lockStore.settings.timeoutMinutes * 60_000);
+}
+
+function showMainWindow() {
+  clearTimeout(blurTimer);
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function updateTrayMenu() {
+  if (!tray || tray.isDestroyed()) return;
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Open CptSpaceDust",
+        click: showMainWindow,
+      },
+      {
+        label: locked ? "App locked" : "Lock app",
+        enabled: Boolean(lockStore?.settings.enabled && !locked),
+        click: lockApp,
+      },
+      { type: "separator" },
+      {
+        label: "Quit CptSpaceDust",
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+}
+
+function createTray() {
+  if (tray && !tray.isDestroyed()) return;
+  tray = new Tray(ICON_PATH);
+  tray.setToolTip("CptSpaceDust");
+  tray.on("click", showMainWindow);
+  tray.on("double-click", showMainWindow);
+  updateTrayMenu();
 }
 
 function parseDeepLink(value) {
@@ -164,9 +214,7 @@ function deliverDeepLink(value) {
     mainWindow.webContents.send("auth:deep-link", pendingDeepLink);
     pendingDeepLink = "";
   }
-  mainWindow?.restore();
-  mainWindow?.show();
-  mainWindow?.focus();
+  showMainWindow();
 }
 
 function isTrustedRendererOrigin(value) {
@@ -280,6 +328,12 @@ function createWindow() {
   mainWindow.on("blur", scheduleLock);
   mainWindow.on("focus", () => clearTimeout(blurTimer));
   mainWindow.on("minimize", lockApp);
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    lockApp();
+    mainWindow.hide();
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -314,9 +368,7 @@ function setupIpc() {
       notification.on("failed", () => activeNotifications.delete(notification));
       notification.on("click", () => {
         activeNotifications.delete(notification);
-        mainWindow?.restore();
-        mainWindow?.show();
-        mainWindow?.focus();
+        showMainWindow();
         if (payload.route && !locked)
           mainWindow?.webContents.send(
             "desktop:navigate",
@@ -468,9 +520,7 @@ if (!gotSingleInstanceLock) {
       value.startsWith(`${DEEP_LINK_SCHEME}://`),
     );
     if (link) deliverDeepLink(link);
-    mainWindow?.restore();
-    mainWindow?.show();
-    mainWindow?.focus();
+    else showMainWindow();
   });
   app.on("open-url", (event, url) => {
     event.preventDefault();
@@ -490,8 +540,19 @@ if (!gotSingleInstanceLock) {
     configurePermissions();
     setupIpc();
     createWindow();
+    createTray();
     configureUpdater();
   });
 }
 
-app.on("window-all-closed", () => app.quit());
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+app.on("activate", showMainWindow);
+app.on("window-all-closed", () => {
+  // Keep the process and notification-area icon alive after closing the window.
+});
+app.on("will-quit", () => {
+  tray?.destroy();
+  tray = null;
+});
