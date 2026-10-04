@@ -146,8 +146,8 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                Automatic DM slow mode and an optional setting to hide
-                notification details while the app is locked.
+                CrewDeck’s new name, connected-crew icon, and custom crewdeck://
+                app links.
               </p>
             </div>
           </article>
@@ -156,8 +156,9 @@ export function WhatsNew() {
             <div>
               <strong>Changed</strong>
               <p>
-                Messages and incoming calls now alert reliably while the app is
-                open, backgrounded, or locked.
+                The installer, updater, Windows notifications, tray menu,
+                sign-in screens, and loading screens now share the CrewDeck
+                identity.
               </p>
             </div>
           </article>
@@ -166,8 +167,8 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                Stale call links that could restart the last call when Messages
-                was reopened. No community features were removed.
+                No community features were removed. Your data stays in place;
+                only the old CptSpaceDust desktop branding is gone.
               </p>
             </div>
           </article>
