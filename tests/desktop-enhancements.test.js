@@ -16,6 +16,9 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
   );
   const settings = read("src", "renderer", "components", "AppSettings.jsx");
   const mayuLoader = read("src", "renderer", "components", "MayuLoader.jsx");
+  const startup = read("src", "renderer", "components", "StartupScreen.jsx");
+  const auth = read("src", "renderer", "components", "AuthScreen.jsx");
+  const app = read("src", "renderer", "App.jsx");
   const messages = read("src", "renderer", "pages", "MessagesPageV2.jsx");
   const profile = read(
     "src",
@@ -43,6 +46,13 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
   assert.match(mayuLoader, /mayu-walk-6\.png/);
   assert.match(mayuLoader, /src=\{walkFrames\[frame\]\}/);
   assert.doesNotMatch(mayuLoader, /backgroundImage/);
+  assert.match(startup, /Bringing your crew together/);
+  assert.match(startup, /startup-ring/);
+  assert.doesNotMatch(startup, /Mayu|mayu/);
+  assert.match(app, /<StartupScreen label="Preparing your private community…"/);
+  assert.match(auth, /auth-card-\$\{mode\}/);
+  assert.match(auth, /Forgot password\?/);
+  assert.match(auth, /What happens next\?/);
   assert.match(messages, /Search messages/);
   assert.match(profile, /Report a concern/);
 });

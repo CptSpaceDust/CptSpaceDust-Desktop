@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
 import {
+  ArrowLeft,
   Eye,
   EyeOff,
   KeyRound,
   Mail,
   ShieldCheck,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import { HCAPTCHA_HOST, HCAPTCHA_SITE_KEY, supabase } from "../lib/supabase";
@@ -230,6 +232,35 @@ export default function AuthScreen({
       );
   }
 
+  const modeDetails = {
+    login: {
+      eyebrow: "Welcome back",
+      title: "Sign in to CrewDeck",
+      copy: "Your messages, meetups, and community are right where you left them.",
+      icon: Mail,
+    },
+    signup: {
+      eyebrow: "Join the crew",
+      title: "Create your account",
+      copy: "Set up the account you’ll use everywhere in the community.",
+      icon: UserRound,
+    },
+    reset: {
+      eyebrow: "Account recovery",
+      title: "Reset your password",
+      copy: "Enter your account email and we’ll send a secure link back to CrewDeck.",
+      icon: KeyRound,
+    },
+    mfa: {
+      eyebrow: "Two-factor verification",
+      title: "One more security check",
+      copy: "Enter the current six-digit code from your authenticator app.",
+      icon: KeyRound,
+    },
+  };
+  const details = modeDetails[mode] || modeDetails.login;
+  const ModeIcon = details.icon;
+
   return (
     <main className="auth-layout">
       <section className="auth-story">
@@ -243,11 +274,11 @@ export default function AuthScreen({
           </div>
         </div>
         <div className="auth-copy">
-          <span className="eyebrow">Crew communications online</span>
+          <span className="eyebrow">Your crew, one place</span>
           <h1>
-            Your community.
+            Stay close to your community.
             <br />
-            <em>One private orbit.</em>
+            <em>Built for the crew.</em>
           </h1>
           <p>
             Meet the crew, build ideas together, plan meetups, and keep every
@@ -265,7 +296,17 @@ export default function AuthScreen({
         </div>
       </section>
       <section className="auth-panel">
-        <div className="auth-card">
+        <div className={`auth-card auth-card-${mode}`}>
+          {(mode === "reset" || mode === "mfa") && (
+            <button
+              className="auth-back-button"
+              type="button"
+              onClick={() => setMode("login")}
+            >
+              <ArrowLeft />
+              Back to sign in
+            </button>
+          )}
           {mode !== "reset" && mode !== "mfa" && (
             <div className="auth-mode-switch" aria-label="Account action">
               <button
@@ -284,43 +325,29 @@ export default function AuthScreen({
               </button>
             </div>
           )}
-          <div className="auth-icon">
-            {mode === "reset" || mode === "mfa" ? (
-              <KeyRound />
-            ) : mode === "signup" ? (
-              <UserRound />
-            ) : (
-              <Mail />
-            )}
-          </div>
-          <span className="eyebrow">
-            {mode === "signup"
-              ? "Join the crew"
-              : mode === "reset"
-                ? "Account recovery"
-                : mode === "mfa"
-                  ? "Two-factor verification"
-                  : "Welcome back"}
-          </span>
-          <h2>
-            {mode === "signup"
-              ? "Create your account"
-              : mode === "reset"
-                ? "Reset your password"
-                : mode === "mfa"
-                  ? "Enter your authenticator code"
-                  : "Sign in to continue"}
-          </h2>
-          <p className="auth-mode-copy">
-            {mode === "signup"
-              ? "Use the same account details you use across the community."
-              : mode === "reset"
-                ? "We will email a secure link that opens directly in this app."
-                : mode === "mfa"
-                  ? "Open your authenticator app and enter the current six-digit code."
-                  : "Pick up your conversations, meetups, and community activity."}
-          </p>
-          <form onSubmit={submit}>
+          <header className="auth-heading">
+            <div className="auth-icon">
+              <ModeIcon />
+            </div>
+            <div>
+              <span className="eyebrow">{details.eyebrow}</span>
+              <h2>{details.title}</h2>
+              <p className="auth-mode-copy">{details.copy}</p>
+            </div>
+          </header>
+          {mode === "reset" && (
+            <div className="auth-recovery-note">
+              <Sparkles />
+              <span>
+                <strong>What happens next?</strong>
+                <small>
+                  The email link opens CrewDeck so you can choose a new password
+                  securely.
+                </small>
+              </span>
+            </div>
+          )}
+          <form className="auth-form" onSubmit={submit}>
             {mode === "mfa" ? (
               <label className="field">
                 <span>6-digit code</span>
@@ -374,10 +401,21 @@ export default function AuthScreen({
                 </label>
                 {mode !== "reset" && (
                   <>
-                    <label className="field">
-                      <span>Password</span>
+                    <div className="field">
+                      <div className="field-label-row">
+                        <label htmlFor="auth-password">Password</label>
+                        {mode === "login" && (
+                          <button
+                            type="button"
+                            onClick={() => setMode("reset")}
+                          >
+                            Forgot password?
+                          </button>
+                        )}
+                      </div>
                       <div className="password-field">
                         <input
+                          id="auth-password"
                           type={showPassword ? "text" : "password"}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
@@ -424,7 +462,7 @@ export default function AuthScreen({
                           </small>
                         </div>
                       )}
-                    </label>
+                    </div>
                     {mode === "signup" && (
                       <label className="field">
                         <span>Confirm password</span>
@@ -440,6 +478,13 @@ export default function AuthScreen({
                       </label>
                     )}
                     <div className="captcha-wrap">
+                      <div className="captcha-label">
+                        <ShieldCheck />
+                        <span>
+                          <strong>Security check</strong>
+                          <small>Complete this once to continue.</small>
+                        </span>
+                      </div>
                       <HCaptcha
                         ref={captchaRef}
                         sitekey={HCAPTCHA_SITE_KEY}
@@ -459,7 +504,11 @@ export default function AuthScreen({
                 )}
               </>
             )}
-            {message && <p className="form-message">{message}</p>}
+            {message && (
+              <p className="form-message" role="status">
+                {message}
+              </p>
+            )}
             <button className="button primary wide" disabled={busy}>
               {busy
                 ? "Connecting…"
@@ -469,17 +518,29 @@ export default function AuthScreen({
                     ? "Send reset email"
                     : mode === "mfa"
                       ? "Verify code"
-                      : "Enter community"}
+                      : "Sign in"}
             </button>
           </form>
           <div className="auth-links">
             {mode === "login" && (
-              <button onClick={() => setMode("reset")}>
-                Forgot your password?
-              </button>
+              <span>
+                New to CrewDeck?{" "}
+                <button onClick={() => setMode("signup")}>
+                  Create account
+                </button>
+              </span>
             )}
-            {mode !== "login" && mode !== "mfa" && (
-              <button onClick={() => setMode("login")}>Back to sign in</button>
+            {mode === "signup" && (
+              <span>
+                Already have an account?{" "}
+                <button onClick={() => setMode("login")}>Sign in</button>
+              </span>
+            )}
+            {mode === "reset" && (
+              <span>
+                Remembered your password?{" "}
+                <button onClick={() => setMode("login")}>Sign in</button>
+              </span>
             )}
           </div>
         </div>

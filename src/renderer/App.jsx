@@ -6,6 +6,7 @@ import ResetPasswordScreen from "./components/ResetPasswordScreen";
 import Sidebar from "./components/Sidebar";
 import AppSettings from "./components/AppSettings";
 import { MayuLoader } from "./components/MayuLoader";
+import StartupScreen from "./components/StartupScreen";
 import { getActiveRestrictions, getProfile, updatePresence } from "./lib/data";
 import { supabase } from "./lib/supabase";
 import {
@@ -547,11 +548,7 @@ export default function App() {
     viewedPerson,
   ]);
   if (lock.loading || loading)
-    return (
-      <div className="boot-screen">
-        <MayuLoader label="Establishing orbit…" />
-      </div>
-    );
+    return <StartupScreen label="Preparing your private community…" />;
   if (lock.locked) return <LockScreen />;
   if (recovery)
     return <ResetPasswordScreen onDone={() => setRecovery(false)} />;
