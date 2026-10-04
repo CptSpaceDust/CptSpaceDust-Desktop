@@ -146,8 +146,8 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                CrewDeck’s new name, connected-crew icon, and custom crewdeck://
-                app links.
+                A polished CrewDeck startup sequence with an assembling logo,
+                connected crew nodes, glass lighting, and loading progress.
               </p>
             </div>
           </article>
@@ -156,9 +156,9 @@ export function WhatsNew() {
             <div>
               <strong>Changed</strong>
               <p>
-                The installer, updater, Windows notifications, tray menu,
-                sign-in screens, and loading screens now share the CrewDeck
-                identity.
+                Sign in, account creation, forgot password, and password reset
+                now use a clearer, consistent layout with improved spacing and
+                guidance.
               </p>
             </div>
           </article>
@@ -167,8 +167,8 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                No community features were removed. Your data stays in place;
-                only the old CptSpaceDust desktop branding is gone.
+                No community features were removed. Character artwork was
+                removed from the initial startup screen.
               </p>
             </div>
           </article>
