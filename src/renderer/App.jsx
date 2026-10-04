@@ -32,6 +32,7 @@ import NotificationsPage from "./pages/NotificationsPage";
 import { useMessageAlerts } from "./lib/messageAlerts";
 import CaptainPage from "./pages/CaptainPage";
 import UpdateOverlay from "./components/UpdateVisual";
+import { InAppDialogHost } from "./components/InAppDialog";
 import {
   ConnectivityBanner,
   InactivityLock,
@@ -236,12 +237,18 @@ export default function App() {
   useEffect(() => {
     if (!session?.user) return;
     const userId = session.user.id;
-    supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("is_read", false)
-      .then(({ count }) => setUnread(count || 0));
+    let alive = true;
+    const refreshUnread = async () => {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("is_read", false);
+      if (alive) setUnread(count || 0);
+    };
+    const notificationsChanged = () => refreshUnread();
+    refreshUnread();
+    window.addEventListener("notifications-changed", notificationsChanged);
     const channel = supabase
       .channel(`desktop-notifications-${userId}`)
       .on(
@@ -253,6 +260,7 @@ export default function App() {
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
+          refreshUnread();
           if (payload.eventType === "DELETE") {
             if (payload.old?.id === incomingCallRef.current?.id) {
               stopRingtone();
@@ -262,7 +270,6 @@ export default function App() {
           }
           if (payload.eventType !== "INSERT") return;
           const item = payload.new;
-          setUnread((n) => n + 1);
           // Per-message alerts handle chat messages, including repeated messages
           // while the website's notification row is already unread.
           if (
@@ -290,7 +297,8 @@ export default function App() {
             if (!isQuietTime(getPreferences())) playNotificationSound();
             setToast(item);
           }
-          if (!isQuietTime(getPreferences()))
+          const preferences = getPreferences();
+          if (preferences.desktopNotifications && !isQuietTime(preferences))
             window.desktop.notify(
               item.title || "Community update",
               item.message || "You have a new notification.",
@@ -299,7 +307,11 @@ export default function App() {
         },
       )
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    return () => {
+      alive = false;
+      window.removeEventListener("notifications-changed", notificationsChanged);
+      supabase.removeChannel(channel);
+    };
   }, [session?.user?.id]);
   function navigate(value) {
     const next = parseNavigation(value);
@@ -309,7 +321,6 @@ export default function App() {
     }
     setPage(next.page);
     if (next.page === "messages") setMessageRoute(next);
-    if (next.page === "notifications") setUnread(0);
   }
   async function closeIncomingCall(open = false) {
     const item = incomingCallRef.current;
@@ -434,13 +445,13 @@ export default function App() {
   return (
     <div className="app-shell">
       <UpdateOverlay />
+      <InAppDialogHost />
       <WhatsNew />
       <InactivityLock enabled={lock.enabled} />
       <Sidebar
         page={page}
         setPage={(id) => {
           setPage(id);
-          if (id === "notifications") setUnread(0);
         }}
         profile={profile}
         onLogout={logout}

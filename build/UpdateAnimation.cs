@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Windows.Forms;
 
 // Independent of Electron: this window remains alive while NSIS replaces the app.
@@ -21,6 +22,7 @@ internal sealed class UpdateAnimation : Form
     private readonly Font brand = new Font("Segoe UI", 11, FontStyle.Bold);
     private readonly Font title = new Font("Segoe UI", 22, FontStyle.Bold);
     private readonly Font copy = new Font("Segoe UI", 10);
+    private readonly Image background;
 
     private UpdateAnimation(Process parent, bool demo, string image)
     {
@@ -29,16 +31,19 @@ internal sealed class UpdateAnimation : Form
         SystemParametersInfo(0x1042, 0, ref animations, 0);
         motion = animations != 0;
         Text = "Updating CptSpaceDust";
-        ClientSize = new Size(560, 410);
+        ClientSize = new Size(720, 480);
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(8, 13, 28);
         DoubleBuffered = true;
         ShowInTaskbar = true;
         AccessibleName = "CptSpaceDust update in progress";
+        using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("MayuUpdateDesk.png")) {
+            if (stream != null) background = new Bitmap(Image.FromStream(stream));
+        }
         var random = new Random(42);
         for (int i = 0; i < stars.Length; i++) stars[i] = new PointF(random.Next(16, 544), random.Next(28, 280));
-        var close = new Button { Text = "×", FlatStyle = FlatStyle.Flat, ForeColor = Color.FromArgb(159, 175, 204), BackColor = BackColor, Bounds = new Rectangle(514, 10, 32, 30), AccessibleName = "Hide animation; installation continues", TabIndex = 0 };
+        var close = new Button { Text = "×", FlatStyle = FlatStyle.Flat, ForeColor = Color.FromArgb(235, 235, 240), BackColor = Color.FromArgb(28, 20, 23), Bounds = new Rectangle(674, 10, 32, 30), AccessibleName = "Hide animation; installation continues", TabIndex = 0 };
         close.FlatAppearance.BorderSize = 0;
         close.Click += delegate { Close(); };
         Controls.Add(close);
@@ -66,6 +71,27 @@ internal sealed class UpdateAnimation : Form
         Graphics g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         double time = motion ? elapsed.Elapsed.TotalSeconds : 0;
+        if (background != null) {
+            float scale = Math.Max((float)ClientSize.Width / background.Width, (float)ClientSize.Height / background.Height);
+            float drawWidth = background.Width * scale, drawHeight = background.Height * scale;
+            g.DrawImage(background, (ClientSize.Width - drawWidth) / 2, (ClientSize.Height - drawHeight) / 2, drawWidth, drawHeight);
+            using (var shade = new LinearGradientBrush(new Point(0, 250), new Point(0, ClientSize.Height), Color.FromArgb(6, 7, 10, 12), Color.FromArgb(244, 8, 9, 14)))
+                g.FillRectangle(shade, 0, 250, ClientSize.Width, ClientSize.Height - 250);
+            using (var edge = new Pen(Color.FromArgb(85, 255, 255, 255))) g.DrawRectangle(edge, 0, 0, Width - 1, Height - 1);
+            using (var pill = new SolidBrush(Color.FromArgb(185, 18, 18, 24))) g.FillRectangle(pill, new RectangleF(24, 22, 156, 32));
+            using (var brush = new SolidBrush(Color.FromArgb(240, 245, 247, 252))) g.DrawString("CptSpaceDust", brand, brush, 42, 29);
+            for (int i = 0; i < 4; i++) {
+                int alpha = 80 + (int)(150 * Math.Max(0, Math.Sin(time * 8 - i * .75)));
+                using (var key = new SolidBrush(Color.FromArgb(alpha, 190, 122, 255))) g.FillRectangle(key, new RectangleF(283 + i * 18, 282, 12, 5));
+            }
+            CenterText(g, "Installing your update", title, Color.FromArgb(248, 249, 252), 340);
+            CenterText(g, "Were getting this updated for you!", copy, Color.FromArgb(190, 194, 206), 382);
+            using (var track = new SolidBrush(Color.FromArgb(105, 255, 255, 255))) g.FillRectangle(track, new RectangleF(110, 426, 500, 6));
+            float deskTravel = motion ? (float)((Math.Sin(time * 1.7) + 1) / 2) * 390 : 195;
+            using (var beam = new LinearGradientBrush(new PointF(110 + deskTravel, 0), new PointF(220 + deskTravel, 0), Color.FromArgb(150, 130, 98, 246), Color.FromArgb(240, 200, 126, 255))) g.FillRectangle(beam, new RectangleF(110 + deskTravel, 426, 110, 6));
+            CenterText(g, "It is safe to leave this installer open", copy, Color.FromArgb(142, 148, 164), 446);
+            return;
+        }
         using (var bg = new LinearGradientBrush(ClientRectangle, Color.FromArgb(10, 18, 36), Color.FromArgb(19, 15, 39), 45f)) g.FillRectangle(bg, ClientRectangle);
         using (var edge = new Pen(Color.FromArgb(70, 97, 173, 232))) g.DrawRectangle(edge, 0, 0, Width - 1, Height - 1);
         for (int i = 0; i < stars.Length; i++) {
@@ -112,7 +138,7 @@ internal sealed class UpdateAnimation : Form
         CenterText(g, "Your community will be back shortly", copy, Color.FromArgb(111, 131, 164), 374);
     }
     protected override void Dispose(bool disposing) {
-        if (disposing) { timer.Dispose(); if (installer != null) installer.Dispose(); brand.Dispose(); title.Dispose(); copy.Dispose(); }
+        if (disposing) { timer.Dispose(); if (installer != null) installer.Dispose(); if (background != null) background.Dispose(); brand.Dispose(); title.Dispose(); copy.Dispose(); }
         base.Dispose(disposing);
     }
     [STAThread] private static void Main(string[] args) {

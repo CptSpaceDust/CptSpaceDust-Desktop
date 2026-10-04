@@ -9,7 +9,15 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld("desktop", {
   platform: process.platform,
   notify: (title, body, route = "") =>
-    ipcRenderer.send("desktop:notify", { title, body, route }),
+    ipcRenderer.invoke("desktop:notify", { title, body, route }),
+  notifications: {
+    getStatus: () => ipcRenderer.invoke("desktop:notification-status"),
+    test: () => ipcRenderer.invoke("desktop:test-notification"),
+  },
+  system: {
+    getStartup: () => ipcRenderer.invoke("system:get-startup"),
+    setStartup: (enabled) => ipcRenderer.invoke("system:set-startup", enabled),
+  },
   openExternal: (url) => ipcRenderer.send("desktop:open-external", url),
   onNavigate: (callback) => subscribe("desktop:navigate", callback),
   onDeepLink: (callback) => subscribe("auth:deep-link", callback),

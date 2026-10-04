@@ -6,7 +6,6 @@ import mayuWalk3 from "../assets/mayu/mayu-walk-3.png";
 import mayuWalk4 from "../assets/mayu/mayu-walk-4.png";
 import mayuWalk5 from "../assets/mayu/mayu-walk-5.png";
 import mayuWalk6 from "../assets/mayu/mayu-walk-6.png";
-import mayuUpdate from "../assets/mayu/mayu-update.png";
 
 const walkFrames = [
   mayuWalk1,
@@ -20,7 +19,6 @@ const walkFrames = [
 export function MayuLoader({ mode = "walk", label, compact = false }) {
   const [frame, setFrame] = useState(0);
   useEffect(() => {
-    if (mode !== "walk") return undefined;
     const reduced =
       document.documentElement.dataset.motion === "reduced" ||
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -39,11 +37,7 @@ export function MayuLoader({ mode = "walk", label, compact = false }) {
       className={`mayu-loader mayu-loader-${mode} ${compact ? "compact" : ""}`}
     >
       <div className="mayu-loader-art" aria-hidden="true">
-        {mode === "update" ? (
-          <img src={mayuUpdate} alt="" />
-        ) : (
-          <img className="mayu-walk-frame" src={walkFrames[frame]} alt="" />
-        )}
+        <img className="mayu-walk-frame" src={walkFrames[frame]} alt="" />
       </div>
       <LoaderCircle className="mayu-loader-fallback spin" aria-hidden="true" />
       {label && <span>{label}</span>}

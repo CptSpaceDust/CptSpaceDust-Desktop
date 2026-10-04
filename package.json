@@ -1,6 +1,6 @@
 {
   "name": "cptspacedust-desktop",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "private": true,
   "author": "CptSpaceDust",
   "description": "A custom desktop client for the CptSpaceDust community.",
@@ -53,7 +53,13 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "shortcutName": "CptSpaceDust",
+      "installerSidebar": "build/installer-sidebar.bmp",
+      "uninstallerSidebar": "build/installer-sidebar.bmp",
+      "installerHeader": "build/installer-header.bmp",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     },
     "publish": [
       {

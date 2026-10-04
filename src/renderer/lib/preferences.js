@@ -7,8 +7,9 @@ export const defaultPreferences = Object.freeze({
   glassIntensity: "balanced",
   compactLayout: false,
   reduceMotion: false,
-  showMayuLoaders: true,
   enterToSend: true,
+  desktopNotifications: true,
+  messageNotifications: true,
   notificationSound: true,
   notificationVolume: 82,
   quietHours: false,
@@ -17,6 +18,9 @@ export const defaultPreferences = Object.freeze({
   meetupReminders: true,
   reminderMinutes: 15,
   inactivityLockMinutes: 0,
+  audioInputDeviceId: "",
+  audioOutputDeviceId: "",
+  pushToTalkDefault: false,
   mutedConversations: {},
 });
 
@@ -25,7 +29,7 @@ export function applyPreferences(settings = getPreferences()) {
   root.dataset.glass = settings.glassIntensity || "balanced";
   root.dataset.density = settings.compactLayout ? "compact" : "comfortable";
   root.dataset.motion = settings.reduceMotion ? "reduced" : "full";
-  root.dataset.mayuLoaders = settings.showMayuLoaders === false ? "off" : "on";
+  root.dataset.mayuLoaders = "on";
   return settings;
 }
 

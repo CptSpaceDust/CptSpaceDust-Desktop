@@ -41,7 +41,7 @@ test("Space Glass covers every major app surface", () => {
   assert.match(css, /prefers-reduced-transparency/);
 });
 
-test("What’s Changed contains only Added and Removed summaries", () => {
+test("What’s Changed contains Added, Changed, and Removed summaries", () => {
   const source = read(
     "src",
     "renderer",
@@ -49,8 +49,9 @@ test("What’s Changed contains only Added and Removed summaries", () => {
     "DesktopEnhancements.jsx",
   );
   assert.match(source, /<h2>What’s Changed<\/h2>/);
-  assert.equal((source.match(/className="change-card /g) || []).length, 2);
+  assert.equal((source.match(/className="change-card /g) || []).length, 3);
   assert.match(source, /<strong>Added<\/strong>/);
+  assert.match(source, /<strong>Changed<\/strong>/);
   assert.match(source, /<strong>Removed<\/strong>/);
   assert.match(source, /No community features were\s+removed\./);
 });

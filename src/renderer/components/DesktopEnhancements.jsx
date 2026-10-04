@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, CloudOff, Minus, Rocket, X } from "lucide-react";
+import { CheckCircle2, CloudOff, Minus, Rocket, Wrench, X } from "lucide-react";
 import { getMeetups } from "../lib/data";
 import { getPreferences, isQuietTime } from "../lib/preferences";
 import { playNotificationSound } from "../lib/sounds";
@@ -51,11 +51,12 @@ export function useMeetupReminders(userId) {
         ) {
           localStorage.setItem(key, "sent");
           playNotificationSound();
-          window.desktop.notify(
-            "Meetup starting soon",
-            `${item.meetup_type || "Your meetup"} starts at ${new Date(start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
-            "MeetupCalendar.html",
-          );
+          if (settings.desktopNotifications)
+            window.desktop.notify(
+              "Meetup starting soon",
+              `${item.meetup_type || "Your meetup"} starts at ${new Date(start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
+              "MeetupCalendar.html",
+            );
         }
       }
     }
@@ -141,9 +142,18 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                A new Space Glass look, more settings, and Mayu loading
-                animations. Messages, calls, reminders, and offline recovery
-                also got some extra polish.
+                More useful settings, clearer presence indicators, and a branded
+                Setup experience.
+              </p>
+            </div>
+          </article>
+          <article className="change-card changed">
+            <Wrench />
+            <div>
+              <strong>Changed</strong>
+              <p>
+                Updates now use the Mayu typing scene, and notification counts
+                stay synchronized with the activity feed.
               </p>
             </div>
           </article>
@@ -152,7 +162,8 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                The old mix of panel styles. No community features were removed.
+                Native browser popups were replaced with consistent in-app
+                dialogs. No community features were removed.
               </p>
             </div>
           </article>

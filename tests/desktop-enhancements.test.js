@@ -31,17 +31,47 @@ test("desktop enhancements cover notifications, drafts, reminders, and privacy",
   assert.match(settings, /Lock after no activity/);
   assert.match(enhancements, /Meetup starting soon/);
   assert.match(enhancements, /What’s Changed/);
-  assert.match(settings, /Appearance & motion/);
-  assert.match(settings, /Press Enter to send/);
-  assert.match(settings, /Show Mayu on loading screens/);
+  assert.match(settings, /Appearance & accessibility/);
+  assert.match(settings, /Calls & audio/);
+  assert.match(settings, /Send test notification/);
+  assert.doesNotMatch(settings, /Show Mayu on loading screens/);
+  assert.doesNotMatch(settings, /<h2>Messages<\/h2>/);
   assert.match(preferences, /glassIntensity/);
   assert.match(preferences, /enterToSend/);
-  assert.match(preferences, /showMayuLoaders/);
+  assert.match(preferences, /audioInputDeviceId/);
+  assert.match(preferences, /desktopNotifications/);
   assert.match(mayuLoader, /mayu-walk-6\.png/);
   assert.match(mayuLoader, /src=\{walkFrames\[frame\]\}/);
   assert.doesNotMatch(mayuLoader, /backgroundImage/);
   assert.match(messages, /Search messages/);
   assert.match(profile, /Report a concern/);
+});
+
+test("notifications stay synchronized and app flows avoid native popups", () => {
+  const app = read("src", "renderer", "App.jsx");
+  const notifications = read(
+    "src",
+    "renderer",
+    "pages",
+    "NotificationsPage.jsx",
+  );
+  const community = read("src", "renderer", "pages", "CommunityPagesV2.jsx");
+  const enhanced = read(
+    "src",
+    "renderer",
+    "pages",
+    "EnhancedCommunityPages.jsx",
+  );
+  const messages = read("src", "renderer", "pages", "MessagesPageV2.jsx");
+  const dialog = read("src", "renderer", "components", "InAppDialog.jsx");
+  const combined = [notifications, community, enhanced, messages].join("\n");
+
+  assert.match(app, /notifications-changed/);
+  assert.match(notifications, /notifications-changed/);
+  assert.doesNotMatch(app, /setUnread\(0\)/);
+  assert.doesNotMatch(combined, /\b(?:alert|confirm|prompt)\s*\(/);
+  assert.match(combined, /confirmInApp/);
+  assert.match(dialog, /<Modal/);
 });
 
 test("community meetup times convert into a real instant", async () => {

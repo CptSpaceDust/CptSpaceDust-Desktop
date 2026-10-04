@@ -21,7 +21,7 @@ test("Enter sends; Shift+Enter, IME composition, and held Enter do not", async (
     assert.equal(shouldSendOnEnter(event), false);
 });
 
-test("message alerts are suppressed only for the focused matching conversation", async () => {
+test("message alerts are suppressed for the visible matching conversation", async () => {
   const { shouldAlertForMessage } = await import(
     "../src/renderer/lib/messageBehavior.mjs"
   );
@@ -29,7 +29,7 @@ test("message alerts are suppressed only for the focused matching conversation",
   assert.equal(shouldAlertForMessage(current, "a", false, true, true), false);
   assert.equal(shouldAlertForMessage(current, "b", false, true, true), true);
   assert.equal(shouldAlertForMessage(current, "a", true, true, true), true);
-  assert.equal(shouldAlertForMessage(current, "a", false, false, true), true);
+  assert.equal(shouldAlertForMessage(current, "a", false, false, true), false);
   assert.equal(shouldAlertForMessage(current, "a", false, true, false), true);
   assert.equal(shouldAlertForMessage(null, "a", false, true, true), true);
 });

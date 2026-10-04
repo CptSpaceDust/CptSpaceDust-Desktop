@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import EditMessageButton from "../components/EditMessageButton";
+import { confirmInApp, promptInApp } from "../components/InAppDialog";
 import MessageComposer, {
   FormattedMessage,
   MessageNotices,
@@ -57,6 +58,7 @@ import { supabase } from "../lib/supabase";
 import { playCallEventSound, startRingtone, stopRingtone } from "../lib/sounds";
 import {
   conversationUnreadCount,
+  getPreferences,
   isMuted,
   markAllConversationsRead,
   markConversationRead,
@@ -227,6 +229,7 @@ function DeleteMessageDialog({ message, onClose, onDelete }) {
 }
 
 function VoiceCall({ conversation, user, onClose, requestedCallId }) {
+  const callPreferences = getPreferences();
   const [status, setStatus] = useState("Preparing your secure voice room…");
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -240,13 +243,11 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
   const [sources, setSources] = useState(null);
   const [sourceError, setSourceError] = useState("");
   const [volumes, setVolumes] = useState({});
-  const [audioInputs, setAudioInputs] = useState([]);
-  const [audioOutputs, setAudioOutputs] = useState([]);
-  const [inputDevice, setInputDevice] = useState("");
-  const [outputDevice, setOutputDevice] = useState("");
-  const [testingMic, setTestingMic] = useState(false);
-  const [micLevel, setMicLevel] = useState(0);
-  const [pushToTalk, setPushToTalk] = useState(false);
+  const [inputDevice] = useState(callPreferences.audioInputDeviceId || "");
+  const [outputDevice] = useState(callPreferences.audioOutputDeviceId || "");
+  const [pushToTalk, setPushToTalk] = useState(
+    Boolean(callPreferences.pushToTalkDefault),
+  );
   const roomRef = useRef();
   const callRef = useRef();
   const startedAtRef = useRef(0);
@@ -256,17 +257,6 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
     conversation.type === "group"
       ? conversation.name
       : conversation.person?.username || "Crew member";
-
-  async function refreshDevices() {
-    if (!navigator.mediaDevices?.enumerateDevices) return;
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const inputs = devices.filter((device) => device.kind === "audioinput");
-    const outputs = devices.filter((device) => device.kind === "audiooutput");
-    setAudioInputs(inputs);
-    setAudioOutputs(outputs);
-    setInputDevice((current) => current || inputs[0]?.deviceId || "");
-    setOutputDevice((current) => current || outputs[0]?.deviceId || "");
-  }
 
   useEffect(() => {
     let disposed = false;
@@ -373,6 +363,8 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
           element.autoplay = true;
           element.dataset.desktopCall = "true";
           element.volume = volumes[participant.identity] ?? 1;
+          if (outputDevice && element.setSinkId)
+            element.setSinkId(outputDevice).catch(() => {});
           document.body.appendChild(element);
           audioElementsRef.current.set(key, element);
           room.startAudio().catch(() => setAudioBlocked(true));
@@ -440,8 +432,15 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
         await room.connect(data.serverUrl, data.participantToken, {
           autoSubscribe: true,
         });
+        if (inputDevice)
+          await room
+            .switchActiveDevice("audioinput", inputDevice)
+            .catch(() => {});
+        if (outputDevice)
+          await room
+            .switchActiveDevice("audiooutput", outputDevice)
+            .catch(() => {});
         await room.localParticipant.setMicrophoneEnabled(true);
-        await refreshDevices().catch(() => {});
         if (disposed) return;
         stopRingtone();
         refresh();
@@ -519,13 +518,6 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
   }, []);
 
   useEffect(() => {
-    const changed = () => refreshDevices().catch(() => {});
-    navigator.mediaDevices?.addEventListener?.("devicechange", changed);
-    return () =>
-      navigator.mediaDevices?.removeEventListener?.("devicechange", changed);
-  }, []);
-
-  useEffect(() => {
     if (!connected || !pushToTalk) return undefined;
     roomRef.current?.localParticipant.setMicrophoneEnabled(false).then(() => {
       setMuted(true);
@@ -556,77 +548,6 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
       window.removeEventListener("keyup", release);
     };
   }, [connected, pushToTalk]);
-
-  async function changeCallDevice(kind, deviceId) {
-    if (!deviceId || !roomRef.current) return;
-    try {
-      await roomRef.current.switchActiveDevice(kind, deviceId);
-      if (kind === "audioinput") setInputDevice(deviceId);
-      else {
-        setOutputDevice(deviceId);
-        await Promise.allSettled(
-          [...audioElementsRef.current.values()].map((element) =>
-            element.setSinkId?.(deviceId),
-          ),
-        );
-      }
-      setStatus(
-        kind === "audioinput" ? "Microphone changed." : "Speaker changed.",
-      );
-    } catch {
-      setStatus("That audio device could not be selected.");
-    }
-  }
-
-  async function testMicrophone() {
-    if (testingMic) return;
-    setTestingMic(true);
-    setMicLevel(0);
-    let stream;
-    let frame;
-    let context;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: inputDevice ? { deviceId: { exact: inputDevice } } : true,
-      });
-      context = new AudioContext();
-      const source = context.createMediaStreamSource(stream);
-      const analyser = context.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      const samples = new Uint8Array(analyser.frequencyBinCount);
-      const started = performance.now();
-      const read = () => {
-        analyser.getByteFrequencyData(samples);
-        setMicLevel(
-          Math.min(
-            100,
-            Math.round(
-              (samples.reduce((sum, value) => sum + value, 0) /
-                samples.length /
-                110) *
-                100,
-            ),
-          ),
-        );
-        if (performance.now() - started < 3000)
-          frame = requestAnimationFrame(read);
-        else setTestingMic(false);
-      };
-      read();
-      setTimeout(() => {
-        cancelAnimationFrame(frame);
-        stream?.getTracks().forEach((track) => track.stop());
-        context?.close();
-        setTestingMic(false);
-      }, 3100);
-    } catch {
-      stream?.getTracks().forEach((track) => track.stop());
-      context?.close();
-      setTestingMic(false);
-      setStatus("The microphone test could not start. Check its permission.");
-    }
-  }
 
   async function changePushToTalk(enabled) {
     setPushToTalk(enabled);
@@ -780,49 +701,10 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
         )}
 
         {connected && (
-          <section className="call-device-panel" aria-label="Call devices">
-            <label>
-              <span>Microphone</span>
-              <select
-                value={inputDevice}
-                onChange={(event) =>
-                  changeCallDevice("audioinput", event.target.value)
-                }
-              >
-                {audioInputs.map((device, index) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || `Microphone ${index + 1}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Speaker</span>
-              <select
-                value={outputDevice}
-                onChange={(event) =>
-                  changeCallDevice("audiooutput", event.target.value)
-                }
-              >
-                {audioOutputs.map((device, index) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || `Speaker ${index + 1}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="call-mic-test">
-              <button
-                type="button"
-                onClick={testMicrophone}
-                disabled={testingMic}
-              >
-                <Mic /> {testingMic ? "Listening…" : "Test mic"}
-              </button>
-              <span aria-label={`Microphone level ${micLevel}%`}>
-                <i style={{ width: `${micLevel}%` }} />
-              </span>
-            </div>
+          <section
+            className="call-preference-row"
+            aria-label="Call preferences"
+          >
             <label className="call-push-to-talk">
               <input
                 type="checkbox"
@@ -832,6 +714,7 @@ function VoiceCall({ conversation, user, onClose, requestedCallId }) {
               <span>Push to talk</span>
               <small>Hold Space</small>
             </label>
+            <small>Audio devices can be changed in Settings.</small>
           </section>
         )}
 
@@ -1367,7 +1250,11 @@ function DirectMessagesPage({
                 <Avatar profile={item.person} />
                 <span>
                   <strong>{item.person?.username || "Crew member"}</strong>
-                  <small>{online ? "Online" : "Offline"}</small>
+                  <small
+                    className={`presence-chip ${online ? "online" : "offline"}`}
+                  >
+                    <i /> {online ? "Online" : "Offline"}
+                  </small>
                 </span>
                 {conversationUnreadCount(item.id, false) > 0 && (
                   <b className="conversation-unread">
@@ -1386,9 +1273,22 @@ function DirectMessagesPage({
                   <Avatar profile={selected.person} />
                   <div>
                     <h3>{selected.person?.username || "Crew member"}</h3>
-                    <span className="rank">
-                      {selected.person?.rank || "Crew"}
-                    </span>
+                    <div className="chat-identity-meta">
+                      <span className="rank">
+                        {selected.person?.rank || "Crew"}
+                      </span>
+                      <span
+                        className={`presence-chip ${selected.person?.last_seen && Date.now() - new Date(selected.person.last_seen).getTime() < 120000 ? "online" : "offline"}`}
+                      >
+                        <i />
+                        {selected.person?.last_seen &&
+                        Date.now() -
+                          new Date(selected.person.last_seen).getTime() <
+                          120000
+                          ? "Online"
+                          : "Offline"}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="chat-header-actions">
@@ -1722,11 +1622,16 @@ function ManageGroupButton({ group, user, onChanged, onNotice }) {
     }
   }
   async function member(person, operation) {
-    if (
-      operation === "kick" &&
-      !confirm(`Remove ${person.username} from this group?`)
-    )
-      return;
+    if (operation === "kick") {
+      const approved = await confirmInApp(
+        `${person.username} will lose access to this group conversation.`,
+        {
+          title: `Remove ${person.username}?`,
+          confirmLabel: "Remove member",
+        },
+      );
+      if (!approved) return;
+    }
     setBusy(person.id);
     try {
       await manageGroupMember(group.id, person.id, operation, group.name);
@@ -2002,26 +1907,49 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
         const others = details.members.filter(
           (member) => member.id !== user.id,
         );
-        if (
-          others.length &&
-          confirm("Transfer ownership to another member before leaving?")
-        ) {
-          const username = prompt(
-            `New owner username:\n${others.map((member) => member.username).join(", ")}`,
-          )?.trim();
+        const transfer =
+          others.length > 0 &&
+          (await confirmInApp(
+            "Choose another member to own this group before you leave. Canceling here will offer the option to delete the group instead.",
+            {
+              title: "Transfer group ownership?",
+              confirmLabel: "Choose new owner",
+              danger: false,
+            },
+          ));
+        if (transfer) {
+          const username = await promptInApp(
+            `Available members: ${others.map((member) => member.username).join(", ")}`,
+            "",
+            {
+              title: "Choose the new owner",
+              inputLabel: "Exact username",
+              confirmLabel: "Transfer & leave",
+            },
+          );
           if (!username) return;
           newOwner = others.find(
             (member) =>
               member.username.toLowerCase() === username.toLowerCase(),
           )?.id;
           if (!newOwner) throw new Error("Choose a listed member.");
-        } else if (
-          !confirm(
-            "Everyone will be removed and this group will be deleted. Continue?",
-          )
-        )
-          return;
-      } else if (!confirm("Leave this group?")) return;
+        } else {
+          const approved = await confirmInApp(
+            "Everyone will be removed and this group conversation will be permanently deleted.",
+            {
+              title: "Delete this group?",
+              confirmLabel: "Delete group",
+            },
+          );
+          if (!approved) return;
+        }
+      } else {
+        const approved = await confirmInApp(
+          "You will stop receiving messages from this group.",
+          { title: "Leave this group?", confirmLabel: "Leave group" },
+        );
+        if (!approved) return;
+      }
       await leaveGroupConversation(selected.id, newOwner);
       setSelected(null);
       await loadGroups();
@@ -2099,7 +2027,10 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
               />
               <span>
                 <strong>{group.name}</strong>
-                <small>Group conversation</small>
+                <small className="presence-chip group">
+                  <i />
+                  <Users /> Group chat
+                </small>
               </span>
               {conversationUnreadCount(group.id, true) > 0 && (
                 <b className="conversation-unread">
@@ -2122,9 +2053,6 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                   />
                   <div>
                     <h3>{details.name}</h3>
-                    <span className="rank">
-                      {details.members.length} members
-                    </span>
                   </div>
                 </div>
                 <div className="group-chat-actions">
@@ -2296,7 +2224,10 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
                 <Avatar profile={member} size={34} />
                 <span>
                   <strong>{member.username}</strong>
-                  <small>
+                  <small
+                    className={`presence-chip ${online ? "online" : "offline"}`}
+                  >
+                    <i />
                     {member.id === details.owner_id ? "Owner · " : ""}
                     {online ? "Online" : "Offline"}
                   </small>

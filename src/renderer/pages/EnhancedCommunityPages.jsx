@@ -19,6 +19,7 @@ import {
   Modal,
   PageHeader,
 } from "../components/ui";
+import { confirmInApp } from "../components/InAppDialog";
 import {
   cancelMeetup,
   createUserReport,
@@ -517,8 +518,11 @@ export function MeetupsPage({ user, profile }) {
     }
   }
   async function cancel(item) {
-    if (!confirm("Are you sure you want to cancel this meetup request?"))
-      return;
+    const approved = await confirmInApp(
+      "This meetup request will be removed from the calendar.",
+      { title: "Cancel meetup request?", confirmLabel: "Cancel request" },
+    );
+    if (!approved) return;
     try {
       await cancelMeetup(item.id, user.id);
       setMessage("Your meetup request was removed.");

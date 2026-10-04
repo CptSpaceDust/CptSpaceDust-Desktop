@@ -8,5 +8,5 @@ export function shouldSendOnEnter(event) {
 }
 
 export function shouldAlertForMessage(current, id, group, focused, visible) {
-  return !(current?.id === id && current.group === group && focused && visible);
+  return !(current?.id === id && current.group === group && visible);
 }

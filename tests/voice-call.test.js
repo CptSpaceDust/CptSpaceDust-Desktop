@@ -10,6 +10,7 @@ test("desktop voice calls include screen sharing and full room controls", () => 
   const main = read("src", "main.js");
   const preload = read("src", "preload.js");
   const page = read("src", "renderer", "pages", "MessagesPageV2.jsx");
+  const settings = read("src", "renderer", "components", "AppSettings.jsx");
   assert.match(main, /setDisplayMediaRequestHandler/);
   assert.match(main, /desktopCapturer\.getSources/);
   assert.match(main, /audio: "loopback"/);
@@ -26,7 +27,8 @@ test("desktop voice calls include screen sharing and full room controls", () => 
   assert.match(page, /playCallEventSound\("join"\)/);
   assert.match(page, /playCallEventSound\("leave"\)/);
   assert.match(page, /switchActiveDevice/);
-  assert.match(page, /Test mic/);
+  assert.match(settings, /Test microphone/);
+  assert.match(settings, /audioInputDeviceId/);
   assert.match(page, /Push to talk/);
   assert.match(page, /Hold Space/);
 });

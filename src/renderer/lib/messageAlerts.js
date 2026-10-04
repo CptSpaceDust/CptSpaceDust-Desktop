@@ -41,8 +41,6 @@ export function useMessageAlerts(userId) {
       )
         return;
       if (!alive) return;
-      const settings = getPreferences();
-      if (isMuted(id, group, settings) || isQuietTime(settings)) return;
       const current = activeConversation.current;
       if (
         !shouldAlertForMessage(
@@ -55,6 +53,10 @@ export function useMessageAlerts(userId) {
       )
         return;
       markConversationUnread(id, group);
+      const settings = getPreferences();
+      if (!settings.desktopNotifications || !settings.messageNotifications)
+        return;
+      if (isMuted(id, group, settings) || isQuietTime(settings)) return;
       const { data: sender } = await supabase
         .from("profiles")
         .select("username")
@@ -72,7 +74,7 @@ export function useMessageAlerts(userId) {
       )
         return;
       playNotificationSound();
-      window.desktop.notify(
+      await window.desktop.notify(
         sender?.username || "New message",
         message.content || "You have a new message.",
         `Conversation.html?${group ? "group" : "id"}=${encodeURIComponent(id)}`,

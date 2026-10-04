@@ -15,9 +15,9 @@ function audioElement(url, volume, loop = false) {
   return element;
 }
 
-export function playNotificationSound() {
+export async function playNotificationSound(options = {}) {
   const settings = getPreferences();
-  if (!settings.notificationSound || isQuietTime(settings))
+  if (!options.force && (!settings.notificationSound || isQuietTime(settings)))
     return Promise.resolve();
   notificationAudio ||= audioElement(notificationUrl, 0.82);
   notificationAudio.volume = Math.max(
@@ -26,6 +26,14 @@ export function playNotificationSound() {
   );
   notificationAudio.pause();
   notificationAudio.currentTime = 0;
+  const outputDeviceId = options.outputDeviceId || settings.audioOutputDeviceId;
+  if (outputDeviceId && notificationAudio.setSinkId) {
+    try {
+      await notificationAudio.setSinkId(outputDeviceId);
+    } catch {
+      /* The selected output may have been disconnected. */
+    }
+  }
   return notificationAudio.play().catch(() => {});
 }
 

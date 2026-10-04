@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bell,
   Download,
   LockKeyhole,
-  MessageSquareText,
+  Mic2,
+  MonitorSpeaker,
+  Power,
   RefreshCw,
   SlidersHorizontal,
-  TimerReset,
   Volume2,
 } from "lucide-react";
 import { Field, PageHeader } from "./ui";
@@ -16,6 +17,172 @@ import {
   getPreferences,
   updatePreferences,
 } from "../lib/preferences";
+import { playNotificationSound } from "../lib/sounds";
+
+function AudioDevices({ preferences, preference }) {
+  const [inputs, setInputs] = useState([]);
+  const [outputs, setOutputs] = useState([]);
+  const [message, setMessage] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [level, setLevel] = useState(0);
+  const streamRef = useRef(null);
+
+  async function refresh(requestAccess = false) {
+    try {
+      if (requestAccess) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const nextInputs = devices.filter(
+        (device) => device.kind === "audioinput",
+      );
+      const nextOutputs = devices.filter(
+        (device) => device.kind === "audiooutput",
+      );
+      setInputs(nextInputs);
+      setOutputs(nextOutputs);
+      setMessage("Audio devices refreshed.");
+    } catch (error) {
+      setMessage(error?.message || "Audio devices could not be opened.");
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    const changed = () => refresh();
+    navigator.mediaDevices?.addEventListener?.("devicechange", changed);
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.("devicechange", changed);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  async function testMicrophone() {
+    if (testing) return;
+    setTesting(true);
+    setLevel(0);
+    let context;
+    let frame;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: preferences.audioInputDeviceId
+          ? { deviceId: { exact: preferences.audioInputDeviceId } }
+          : true,
+      });
+      streamRef.current = stream;
+      context = new AudioContext();
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const values = new Uint8Array(analyser.frequencyBinCount);
+      const started = performance.now();
+      const sample = () => {
+        analyser.getByteFrequencyData(values);
+        const average =
+          values.reduce((sum, value) => sum + value, 0) / values.length;
+        setLevel(Math.min(100, Math.round(average * 1.7)));
+        if (performance.now() - started < 4000)
+          frame = requestAnimationFrame(sample);
+        else finish();
+      };
+      const finish = () => {
+        cancelAnimationFrame(frame);
+        stream.getTracks().forEach((track) => track.stop());
+        context.close();
+        streamRef.current = null;
+        setTesting(false);
+        setLevel(0);
+        setMessage("Microphone test complete.");
+      };
+      sample();
+    } catch (error) {
+      context?.close();
+      setTesting(false);
+      setMessage(error?.message || "The microphone test could not start.");
+    }
+  }
+
+  return (
+    <section className="panel settings-panel settings-panel-wide">
+      <div className="section-icon">
+        <MonitorSpeaker />
+      </div>
+      <h2>Calls & audio</h2>
+      <p>
+        Choose the microphone and speakers used for calls and sound previews.
+      </p>
+      <div className="settings-device-grid">
+        <Field label="Microphone">
+          <select
+            value={preferences.audioInputDeviceId}
+            onChange={(event) =>
+              preference("audioInputDeviceId", event.target.value)
+            }
+          >
+            <option value="">System default</option>
+            {inputs.map((device, index) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `Microphone ${index + 1}`}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Speakers">
+          <select
+            value={preferences.audioOutputDeviceId}
+            onChange={(event) =>
+              preference("audioOutputDeviceId", event.target.value)
+            }
+          >
+            <option value="">System default</option>
+            {outputs.map((device, index) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `Speaker ${index + 1}`}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <div className="audio-test-row">
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => refresh(true)}
+        >
+          <RefreshCw /> Refresh devices
+        </button>
+        <button
+          className="button secondary"
+          type="button"
+          onClick={testMicrophone}
+          disabled={testing}
+        >
+          <Mic2 /> {testing ? "Listening…" : "Test microphone"}
+        </button>
+        <div
+          className="settings-mic-meter"
+          aria-label={`Microphone level ${level}%`}
+        >
+          <i style={{ width: `${level}%` }} />
+        </div>
+      </div>
+      <label className="check-field">
+        <input
+          type="checkbox"
+          checked={preferences.pushToTalkDefault}
+          onChange={(event) =>
+            preference("pushToTalkDefault", event.target.checked)
+          }
+        />
+        <span>Start calls with push to talk enabled</span>
+      </label>
+      {message && <p className="micro-copy">{message}</p>}
+    </section>
+  );
+}
 
 export default function AppSettings() {
   const [settings, setSettings] = useState({
@@ -27,6 +194,9 @@ export default function AppSettings() {
   const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState("");
   const [preferences, setPreferences] = useState(defaultPreferences);
+  const [notificationStatus, setNotificationStatus] = useState(null);
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [startup, setStartup] = useState(false);
   const [update, setUpdate] = useState({
     status: "idle",
     currentVersion: "",
@@ -34,6 +204,10 @@ export default function AppSettings() {
   });
   useEffect(() => {
     window.desktop.appLock.getState().then(setSettings);
+    window.desktop.notifications.getStatus().then(setNotificationStatus);
+    window.desktop.system
+      .getStartup()
+      .then((value) => setStartup(Boolean(value.enabled)));
     setPreferences(getPreferences());
   }, []);
   function preference(key, value) {
@@ -64,20 +238,33 @@ export default function AppSettings() {
     const result = await window.desktop.appLock.setTimeout(Number(value));
     if (result.ok) setSettings(result.settings);
   }
+  async function testWindowsNotification() {
+    const result = await window.desktop.notifications.test();
+    setNotificationMessage(
+      result.ok ? "Test notification sent to Windows." : result.error,
+    );
+  }
+  async function setLaunchAtStartup(enabled) {
+    const result = await window.desktop.system.setStartup(enabled);
+    setStartup(Boolean(result.enabled));
+  }
   return (
     <div className="page">
       <PageHeader
         eyebrow="Desktop settings"
-        title="Make the app yours"
-        description="Tune the look, motion, messages, notifications, privacy, and updates."
+        title="Settings that matter"
+        description="Control appearance, audio devices, privacy, Windows alerts, and updates."
       />
       <div className="settings-grid">
         <section className="panel settings-panel">
           <div className="section-icon">
             <SlidersHorizontal />
           </div>
-          <h2>Appearance & motion</h2>
-          <p>Adjust the glass effect, spacing, and animated loading screens.</p>
+          <h2>Appearance & accessibility</h2>
+          <p>
+            Balanced is the intended Space Glass look. Soft is calmer; Deep adds
+            stronger transparency and depth.
+          </p>
           <Field label="Glass strength">
             <select
               value={preferences.glassIntensity}
@@ -86,7 +273,7 @@ export default function AppSettings() {
               }
             >
               <option value="soft">Soft</option>
-              <option value="balanced">Balanced</option>
+              <option value="balanced">Balanced · recommended</option>
               <option value="deep">Deep</option>
             </select>
           </Field>
@@ -110,38 +297,6 @@ export default function AppSettings() {
             />
             <span>Reduce motion and animation</span>
           </label>
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={preferences.showMayuLoaders}
-              onChange={(event) =>
-                preference("showMayuLoaders", event.target.checked)
-              }
-            />
-            <span>Show Mayu on loading screens</span>
-          </label>
-        </section>
-        <section className="panel settings-panel">
-          <div className="section-icon">
-            <MessageSquareText />
-          </div>
-          <h2>Messages</h2>
-          <p>Choose how the message box behaves while you type.</p>
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={preferences.enterToSend}
-              onChange={(event) =>
-                preference("enterToSend", event.target.checked)
-              }
-            />
-            <span>Press Enter to send</span>
-          </label>
-          <p className="micro-copy">
-            {preferences.enterToSend
-              ? "Shift+Enter adds a new line."
-              : "Use Ctrl+Enter or the send button to send."}
-          </p>
         </section>
         <section className="panel settings-panel">
           <div className="section-icon">
@@ -203,60 +358,97 @@ export default function AppSettings() {
               )}
             </div>
           </form>
-          {message && <p className="form-message">{message}</p>}
-        </section>
-        <section className="panel settings-panel">
-          <div className="section-icon">
-            <TimerReset />
+          <div className="settings-lock-rules">
+            <Field label="Lock after app is in the background">
+              <select
+                value={settings.timeoutMinutes}
+                disabled={!settings.enabled}
+                onChange={(event) => setTimeoutMinutes(event.target.value)}
+              >
+                <option value="1">1 minute</option>
+                <option value="5">5 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+              </select>
+            </Field>
+            <Field label="Lock after no activity">
+              <select
+                value={preferences.inactivityLockMinutes}
+                disabled={!settings.enabled}
+                onChange={(event) =>
+                  preference(
+                    "inactivityLockMinutes",
+                    Number(event.target.value),
+                  )
+                }
+              >
+                <option value="0">Never</option>
+                <option value="1">1 minute</option>
+                <option value="5">5 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+              </select>
+            </Field>
           </div>
-          <h2>Automatic locking</h2>
-          <p>
-            The app always locks when minimized. Choose how long it can stay in
-            the background.
-          </p>
-          <Field label="Background timeout">
-            <select
-              value={settings.timeoutMinutes}
-              disabled={!settings.enabled}
-              onChange={(e) => setTimeoutMinutes(e.target.value)}
-            >
-              <option value="1">1 minute</option>
-              <option value="5">5 minutes</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-            </select>
-          </Field>
           <button
             className="button secondary"
+            type="button"
             disabled={!settings.enabled}
             onClick={() => window.desktop.appLock.lockNow()}
           >
             Lock now
           </button>
-          <Field label="Lock after no activity">
-            <select
-              value={preferences.inactivityLockMinutes}
-              disabled={!settings.enabled}
-              onChange={(event) =>
-                preference("inactivityLockMinutes", Number(event.target.value))
-              }
-            >
-              <option value="0">Never</option>
-              <option value="1">1 minute</option>
-              <option value="5">5 minutes</option>
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-            </select>
-          </Field>
+          {message && <p className="form-message">{message}</p>}
         </section>
-        <section className="panel settings-panel">
+        <AudioDevices preferences={preferences} preference={preference} />
+        <section className="panel settings-panel settings-panel-wide">
           <div className="section-icon">
             <Bell />
           </div>
           <h2>Notifications</h2>
           <p>
-            Control desktop alerts, sounds, quiet hours, and meetup reminders.
+            Control Windows alerts, sounds, quiet hours, and meetup reminders.
           </p>
+          <div
+            className={`notification-health ${notificationStatus?.supported ? "ready" : "blocked"}`}
+          >
+            <Bell />
+            <span>
+              <strong>
+                {notificationStatus?.supported
+                  ? "Windows notifications are available"
+                  : "Windows notifications are unavailable"}
+              </strong>
+              <small>
+                {notificationStatus?.supported
+                  ? "Send a test to confirm they are visible in Windows."
+                  : "Check Windows notification permissions for CptSpaceDust."}
+              </small>
+            </span>
+          </div>
+          <div className="settings-toggle-grid">
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={preferences.desktopNotifications}
+                onChange={(event) =>
+                  preference("desktopNotifications", event.target.checked)
+                }
+              />
+              <span>Show Windows notifications</span>
+            </label>
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={preferences.messageNotifications}
+                disabled={!preferences.desktopNotifications}
+                onChange={(event) =>
+                  preference("messageNotifications", event.target.checked)
+                }
+              />
+              <span>Notify for messages I am not viewing</span>
+            </label>
+          </div>
           <label className="check-field">
             <input
               type="checkbox"
@@ -283,6 +475,29 @@ export default function AppSettings() {
               <span>{preferences.notificationVolume}%</span>
             </div>
           </Field>
+          <div className="button-row">
+            <button
+              className="button secondary"
+              type="button"
+              disabled={!preferences.notificationSound}
+              onClick={() =>
+                playNotificationSound({
+                  force: true,
+                  outputDeviceId: preferences.audioOutputDeviceId,
+                })
+              }
+            >
+              <Volume2 /> Play sound
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={!notificationStatus?.supported}
+              onClick={testWindowsNotification}
+            >
+              <Bell /> Send test notification
+            </button>
+          </div>
           <label className="check-field">
             <input
               type="checkbox"
@@ -339,6 +554,24 @@ export default function AppSettings() {
               <option value="60">1 hour before</option>
             </select>
           </Field>
+          {notificationMessage && (
+            <p className="form-message">{notificationMessage}</p>
+          )}
+        </section>
+        <section className="panel settings-panel">
+          <div className="section-icon">
+            <Power />
+          </div>
+          <h2>Windows startup</h2>
+          <p>Open CptSpaceDust automatically after you sign in to Windows.</p>
+          <label className="check-field">
+            <input
+              type="checkbox"
+              checked={startup}
+              onChange={(event) => setLaunchAtStartup(event.target.checked)}
+            />
+            <span>Launch CptSpaceDust with Windows</span>
+          </label>
         </section>
         <section className="panel settings-panel">
           <div className="section-icon">

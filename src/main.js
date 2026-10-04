@@ -22,6 +22,8 @@ const ICON_PATH = path.join(__dirname, "..", "assets", "icon.png");
 const isDevelopment = process.argv.includes("--dev");
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+if (process.platform === "win32")
+  app.setAppUserModelId("com.cptspacedust.community");
 
 let mainWindow;
 let lockStore;
@@ -30,6 +32,7 @@ let blurTimer;
 let failedAttempts = [];
 let pendingDeepLink = "";
 let pendingDisplaySourceId = "";
+const activeNotifications = new Set();
 let updateState = {
   status: "idle",
   currentVersion: app.getVersion(),
@@ -289,6 +292,46 @@ function createWindow() {
 }
 
 function setupIpc() {
+  function showDesktopNotification(payload = {}) {
+    if (!Notification.isSupported())
+      return {
+        ok: false,
+        error: "Windows notifications are not supported on this system.",
+      };
+    try {
+      const notification = new Notification({
+        title: locked
+          ? "CptSpaceDust Community"
+          : String(payload.title || "CptSpaceDust Community").slice(0, 120),
+        body: locked
+          ? "Unlock CptSpaceDust to view this notification."
+          : String(payload.body || "").slice(0, 500),
+        silent: true,
+        icon: ICON_PATH,
+      });
+      activeNotifications.add(notification);
+      notification.on("close", () => activeNotifications.delete(notification));
+      notification.on("failed", () => activeNotifications.delete(notification));
+      notification.on("click", () => {
+        activeNotifications.delete(notification);
+        mainWindow?.restore();
+        mainWindow?.show();
+        mainWindow?.focus();
+        if (payload.route && !locked)
+          mainWindow?.webContents.send(
+            "desktop:navigate",
+            String(payload.route),
+          );
+      });
+      notification.show();
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error?.message || "Windows could not show the notification.",
+      };
+    }
+  }
   ipcMain.handle("screen-share:list-sources", async (event) => {
     if (!isTrustedRendererOrigin(event.sender.getURL())) return [];
     const sources = await desktopCapturer.getSources({
@@ -344,22 +387,30 @@ function setupIpc() {
     failedAttempts.push(now);
     return { ok: false, error: "That PIN is incorrect." };
   });
-  ipcMain.on("desktop:notify", (_event, payload = {}) => {
-    if (!Notification.isSupported()) return;
-    const notification = new Notification({
-      title: locked ? "CptSpaceDust Community" : String(payload.title || "CptSpaceDust Community").slice(0, 120),
-      body: locked ? "Unlock CptSpaceDust to view this notification." : String(payload.body || "").slice(0, 500),
-      silent: true,
-      icon: ICON_PATH,
+  ipcMain.handle("desktop:notify", (_event, payload = {}) =>
+    showDesktopNotification(payload),
+  );
+  ipcMain.handle("desktop:notification-status", () => ({
+    supported: Notification.isSupported(),
+    platform: process.platform,
+    appUserModelId: "com.cptspacedust.community",
+  }));
+  ipcMain.handle("desktop:test-notification", () =>
+    showDesktopNotification({
+      title: "Notifications are working",
+      body: "CptSpaceDust can send Windows notifications from this computer.",
+      route: "AppSettings.html",
+    }),
+  );
+  ipcMain.handle("system:get-startup", () => ({
+    enabled: app.getLoginItemSettings().openAtLogin,
+  }));
+  ipcMain.handle("system:set-startup", (_event, enabled) => {
+    app.setLoginItemSettings({
+      openAtLogin: Boolean(enabled),
+      path: process.execPath,
     });
-    notification.on("click", () => {
-      mainWindow?.restore();
-      mainWindow?.show();
-      mainWindow?.focus();
-      if (payload.route && !locked)
-        mainWindow?.webContents.send("desktop:navigate", String(payload.route));
-    });
-    notification.show();
+    return { ok: true, enabled: app.getLoginItemSettings().openAtLogin };
   });
   ipcMain.on("desktop:open-external", (_event, value) => {
     try {
@@ -390,10 +441,19 @@ function setupIpc() {
   ipcMain.handle("updater:install", () => {
     if (updateState.status !== "ready")
       return { ok: false, error: "No downloaded update is ready." };
-    sendUpdateState({ status: "installing", message: "Restarting to install your update…" });
+    sendUpdateState({
+      status: "installing",
+      message: "Restarting to install your update…",
+    });
     setTimeout(() => {
-      try { autoUpdater.quitAndInstall(true, true); }
-      catch (error) { sendUpdateState({ status: "error", message: error.message || "The update could not start." }); }
+      try {
+        autoUpdater.quitAndInstall(true, true);
+      } catch (error) {
+        sendUpdateState({
+          status: "error",
+          message: error.message || "The update could not start.",
+        });
+      }
     }, 650);
     return { ok: true };
   });
@@ -417,7 +477,6 @@ if (!gotSingleInstanceLock) {
     deliverDeepLink(url);
   });
   app.whenReady().then(() => {
-    app.setAppUserModelId("com.cptspacedust.community");
     app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME);
     lockStore = new AppLockStore(
       path.join(app.getPath("userData"), "app-lock.json"),
