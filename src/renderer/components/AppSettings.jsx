@@ -426,7 +426,7 @@ export default function AppSettings() {
               <small>
                 {notificationStatus?.supported
                   ? "Send a test to confirm they are visible in Windows."
-                  : "Check Windows notification permissions for CptSpaceDust."}
+                  : "Check Windows notification permissions for CrewDeck."}
               </small>
             </span>
           </div>
@@ -581,17 +581,17 @@ export default function AppSettings() {
             <Power />
           </div>
           <h2>Windows startup</h2>
-          <p>Open CptSpaceDust automatically after you sign in to Windows.</p>
+          <p>Open CrewDeck automatically after you sign in to Windows.</p>
           <label className="check-field">
             <input
               type="checkbox"
               checked={startup}
               onChange={(event) => setLaunchAtStartup(event.target.checked)}
             />
-            <span>Launch CptSpaceDust with Windows</span>
+            <span>Launch CrewDeck with Windows</span>
           </label>
           <p className="micro-copy">
-            Closing the window keeps CptSpaceDust running in the Windows
+            Closing the window keeps CrewDeck running in the Windows
             notification area so messages and alerts can still arrive. Use the
             tray icon’s Quit option to close it completely.
           </p>

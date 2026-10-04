@@ -48,7 +48,7 @@ test("desktop notifications use the website sounds and ring globally", () => {
 
 test("sidebar branding is reduced to the website name", () => {
   const sidebar = read("src", "renderer", "components", "Sidebar.jsx");
-  assert.match(sidebar, /<strong>CptSpaceDust<\/strong>/);
+  assert.match(sidebar, /<strong>CrewDeck<\/strong>/);
   assert.doesNotMatch(sidebar, /Community Desktop/);
   assert.doesNotMatch(sidebar, /<Rocket/);
 });

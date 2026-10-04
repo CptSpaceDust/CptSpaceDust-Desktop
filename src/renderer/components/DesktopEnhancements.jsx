@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, CloudOff, Minus, Rocket, Wrench, X } from "lucide-react";
+import { CheckCircle2, CloudOff, Minus, Wrench, X } from "lucide-react";
 import { getMeetups } from "../lib/data";
 import { getPreferences, isQuietTime } from "../lib/preferences";
 import { playNotificationSound } from "../lib/sounds";
 import { communityDateTime } from "../lib/time";
+import BrandMark from "./BrandMark";
 
 export function ConnectivityBanner() {
   const [online, setOnline] = useState(navigator.onLine);
@@ -133,7 +134,7 @@ export function WhatsNew() {
           </button>
         </div>
         <div className="whats-new-hero">
-          <Rocket />
+          <BrandMark />
           <div>
             <strong>Here’s what changed</strong>
             <p>A quick look at what’s new in this version.</p>

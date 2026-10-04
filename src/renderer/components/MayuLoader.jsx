@@ -6,6 +6,7 @@ import mayuWalk3 from "../assets/mayu/mayu-walk-3.png";
 import mayuWalk4 from "../assets/mayu/mayu-walk-4.png";
 import mayuWalk5 from "../assets/mayu/mayu-walk-5.png";
 import mayuWalk6 from "../assets/mayu/mayu-walk-6.png";
+import BrandMark from "./BrandMark";
 
 const walkFrames = [
   mayuWalk1,
@@ -36,6 +37,12 @@ export function MayuLoader({ mode = "walk", label, compact = false }) {
     <div
       className={`mayu-loader mayu-loader-${mode} ${compact ? "compact" : ""}`}
     >
+      {!compact && (
+        <div className="mayu-loader-brand" aria-label="CrewDeck">
+          <BrandMark />
+          <strong>CrewDeck</strong>
+        </div>
+      )}
       <div className="mayu-loader-art" aria-hidden="true">
         <img className="mayu-walk-frame" src={walkFrames[frame]} alt="" />
       </div>

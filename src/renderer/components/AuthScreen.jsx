@@ -5,11 +5,11 @@ import {
   EyeOff,
   KeyRound,
   Mail,
-  Rocket,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
 import { HCAPTCHA_HOST, HCAPTCHA_SITE_KEY, supabase } from "../lib/supabase";
+import BrandMark from "./BrandMark";
 
 export default function AuthScreen({
   initialMode = "login",
@@ -111,7 +111,7 @@ export default function AuthScreen({
     if (mode === "reset") {
       setBusy(true);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "cptspacedust://reset-password",
+        redirectTo: "crewdeck://reset-password",
       });
       setBusy(false);
       setMessage(
@@ -143,29 +143,27 @@ export default function AuthScreen({
         options: { captchaToken, data: { username: username.trim() } },
       });
       if (!result.error && result.data.user) {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert({
-            id: result.data.user.id,
-            username: username.trim(),
-            rank: "New Member",
-            joined: new Date().getFullYear(),
-            theme: "default",
-            avatar: null,
-            bio: "New explorer has entered space!",
-            birthday: null,
-            show_age: true,
-            show_birthday: false,
-            favorite_game: "Not Set",
-            discord: "",
-            youtube: "",
-            twitch: "",
-            vrchat: "",
-            steam: "",
-            online: false,
-            last_seen: null,
-            badges: ["First time in space!"],
-          });
+        const { error: profileError } = await supabase.from("profiles").insert({
+          id: result.data.user.id,
+          username: username.trim(),
+          rank: "New Member",
+          joined: new Date().getFullYear(),
+          theme: "default",
+          avatar: null,
+          bio: "New explorer has entered space!",
+          birthday: null,
+          show_age: true,
+          show_birthday: false,
+          favorite_game: "Not Set",
+          discord: "",
+          youtube: "",
+          twitch: "",
+          vrchat: "",
+          steam: "",
+          online: false,
+          last_seen: null,
+          badges: ["First time in space!"],
+        });
         if (
           profileError &&
           !profileError.message?.toLowerCase().includes("duplicate")
@@ -214,14 +212,12 @@ export default function AuthScreen({
             },
           );
         } catch {}
-        await supabase
-          .from("user_sessions")
-          .insert({
-            user_id: result.data.user.id,
-            session_id: crypto.randomUUID(),
-            device: `Desktop app (${navigator.platform})`,
-            browser: navigator.userAgent,
-          });
+        await supabase.from("user_sessions").insert({
+          user_id: result.data.user.id,
+          session_id: crypto.randomUUID(),
+          device: `Desktop app (${navigator.platform})`,
+          browser: navigator.userAgent,
+        });
       }
     }
     setBusy(false);
@@ -239,11 +235,11 @@ export default function AuthScreen({
       <section className="auth-story">
         <div className="brand-lockup">
           <span className="brand-orbit">
-            <Rocket />
+            <BrandMark />
           </span>
           <div>
-            <strong>CptSpaceDust</strong>
-            <small>Community Desktop</small>
+            <strong>CrewDeck</strong>
+            <small>Private community desktop</small>
           </div>
         </div>
         <div className="auth-copy">
@@ -317,7 +313,7 @@ export default function AuthScreen({
           </h2>
           <p className="auth-mode-copy">
             {mode === "signup"
-              ? "Use the same account details you will use across the CptSpaceDust community."
+              ? "Use the same account details you use across the community."
               : mode === "reset"
                 ? "We will email a secure link that opens directly in this app."
                 : mode === "mfa"

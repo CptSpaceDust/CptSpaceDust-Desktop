@@ -30,14 +30,14 @@ internal sealed class UpdateAnimation : Form
         int animations = 1;
         SystemParametersInfo(0x1042, 0, ref animations, 0);
         motion = animations != 0;
-        Text = "Updating CptSpaceDust";
+        Text = "Updating CrewDeck";
         ClientSize = new Size(720, 480);
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(8, 13, 28);
         DoubleBuffered = true;
         ShowInTaskbar = true;
-        AccessibleName = "CptSpaceDust update in progress";
+        AccessibleName = "CrewDeck update in progress";
         using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("MayuUpdateDesk.png")) {
             if (stream != null) background = new Bitmap(Image.FromStream(stream));
         }
@@ -79,7 +79,7 @@ internal sealed class UpdateAnimation : Form
                 g.FillRectangle(shade, 0, 250, ClientSize.Width, ClientSize.Height - 250);
             using (var edge = new Pen(Color.FromArgb(85, 255, 255, 255))) g.DrawRectangle(edge, 0, 0, Width - 1, Height - 1);
             using (var pill = new SolidBrush(Color.FromArgb(185, 18, 18, 24))) g.FillRectangle(pill, new RectangleF(24, 22, 156, 32));
-            using (var brush = new SolidBrush(Color.FromArgb(240, 245, 247, 252))) g.DrawString("CptSpaceDust", brand, brush, 42, 29);
+            using (var brush = new SolidBrush(Color.FromArgb(240, 245, 247, 252))) g.DrawString("CrewDeck", brand, brush, 42, 29);
             for (int i = 0; i < 4; i++) {
                 int alpha = 80 + (int)(150 * Math.Max(0, Math.Sin(time * 8 - i * .75)));
                 using (var key = new SolidBrush(Color.FromArgb(alpha, 190, 122, 255))) g.FillRectangle(key, new RectangleF(283 + i * 18, 282, 12, 5));
@@ -99,7 +99,7 @@ internal sealed class UpdateAnimation : Form
             int alpha = 45 + (int)(60 * (1 + Math.Sin(time * 1.4 + i)) / 2);
             using (var star = new SolidBrush(Color.FromArgb(alpha, 175, 201, 248))) g.FillEllipse(star, x, y, i % 3 == 0 ? 2 : 1, i % 3 == 0 ? 2 : 1);
         }
-        CenterText(g, "CptSpaceDust", brand, Color.FromArgb(205, 222, 250), 28);
+        CenterText(g, "CrewDeck", brand, Color.FromArgb(205, 222, 250), 28);
         var state = g.Save();
         g.TranslateTransform(280, 157);
         g.RotateTransform(-24);
@@ -131,7 +131,7 @@ internal sealed class UpdateAnimation : Form
         using (var glass = new Pen(Color.FromArgb(97, 222, 255), 2)) g.DrawEllipse(glass, -8, -16, 16, 16);
         g.Restore(state);
         CenterText(g, "Preparing your next orbit", title, Color.FromArgb(239, 245, 255), 266);
-        CenterText(g, "Installing the CptSpaceDust update…", copy, Color.FromArgb(166, 183, 210), 312);
+        CenterText(g, "Installing the CrewDeck update…", copy, Color.FromArgb(166, 183, 210), 312);
         using (var track = new SolidBrush(Color.FromArgb(29, 42, 67))) g.FillRectangle(track, 110, 352, 340, 3);
         float travel = motion ? (float)((Math.Sin(time * 1.6) + 1) / 2) * 250 : 125;
         using (var beam = new LinearGradientBrush(new PointF(110 + travel, 0), new PointF(200 + travel, 0), Color.FromArgb(107, 124, 249), Color.FromArgb(89, 221, 253))) g.FillRectangle(beam, 110 + travel, 352, 90, 3);

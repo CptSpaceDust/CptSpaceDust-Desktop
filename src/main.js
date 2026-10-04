@@ -11,6 +11,7 @@ const {
   shell,
   Tray,
 } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { AppLockStore } = require("./app-lock-store");
@@ -18,14 +19,29 @@ const { autoUpdater } = require("electron-updater");
 
 const APP_HOST = "app.cptspacedust.local";
 const APP_ORIGIN = `https://${APP_HOST}`;
-const DEEP_LINK_SCHEME = "cptspacedust";
+const DEEP_LINK_SCHEMES = ["crewdeck", "cptspacedust"];
+const PRIMARY_DEEP_LINK_SCHEME = DEEP_LINK_SCHEMES[0];
+const APP_USER_MODEL_ID = "com.crewdeck.app";
 const RENDERER_ROOT = path.join(__dirname, "..", "dist-renderer");
 const ICON_PATH = path.join(__dirname, "..", "assets", "icon.png");
 const isDevelopment = process.argv.includes("--dev");
 
+// Carry sessions, drafts, and PIN settings into the rebranded user-data folder.
+const crewDeckUserData = path.join(app.getPath("appData"), "CrewDeck");
+const legacyUserData = path.join(
+  app.getPath("appData"),
+  "CptSpaceDust Community",
+);
+if (
+  !fs.existsSync(crewDeckUserData) &&
+  fs.existsSync(legacyUserData) &&
+  path.resolve(crewDeckUserData) !== path.resolve(legacyUserData)
+)
+  fs.cpSync(legacyUserData, crewDeckUserData, { recursive: true });
+app.setPath("userData", crewDeckUserData);
+
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
-if (process.platform === "win32")
-  app.setAppUserModelId("com.cptspacedust.community");
+if (process.platform === "win32") app.setAppUserModelId(APP_USER_MODEL_ID);
 
 let mainWindow;
 let tray;
@@ -169,7 +185,7 @@ function updateTrayMenu() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "Open CptSpaceDust",
+        label: "Open CrewDeck",
         click: showMainWindow,
       },
       {
@@ -179,7 +195,7 @@ function updateTrayMenu() {
       },
       { type: "separator" },
       {
-        label: "Quit CptSpaceDust",
+        label: "Quit CrewDeck",
         click: () => {
           isQuitting = true;
           app.quit();
@@ -192,7 +208,7 @@ function updateTrayMenu() {
 function createTray() {
   if (tray && !tray.isDestroyed()) return;
   tray = new Tray(ICON_PATH);
-  tray.setToolTip("CptSpaceDust");
+  tray.setToolTip("CrewDeck");
   tray.on("click", showMainWindow);
   tray.on("double-click", showMainWindow);
   updateTrayMenu();
@@ -201,7 +217,9 @@ function createTray() {
 function parseDeepLink(value) {
   try {
     const url = new URL(value);
-    return url.protocol === `${DEEP_LINK_SCHEME}:` ? value : "";
+    return DEEP_LINK_SCHEMES.includes(url.protocol.replace(/:$/, ""))
+      ? value
+      : "";
   } catch {
     return "";
   }
@@ -302,7 +320,7 @@ function createWindow() {
     height: 940,
     minWidth: 1040,
     minHeight: 680,
-    title: "CptSpaceDust",
+    title: "CrewDeck",
     icon: ICON_PATH,
     backgroundColor: "#070b16",
     show: true,
@@ -370,10 +388,10 @@ function setupIpc() {
       const hideContent = locked && Boolean(payload.hideWhenLocked);
       const notification = new Notification({
         title: hideContent
-          ? "CptSpaceDust Community"
-          : String(payload.title || "CptSpaceDust Community").slice(0, 120),
+          ? "CrewDeck"
+          : String(payload.title || "CrewDeck").slice(0, 120),
         body: hideContent
-          ? "Unlock CptSpaceDust to view this notification."
+          ? "Unlock CrewDeck to view this notification."
           : String(payload.body || "").slice(0, 500),
         silent: true,
         icon: ICON_PATH,
@@ -460,12 +478,12 @@ function setupIpc() {
   ipcMain.handle("desktop:notification-status", () => ({
     supported: Notification.isSupported(),
     platform: process.platform,
-    appUserModelId: "com.cptspacedust.community",
+    appUserModelId: APP_USER_MODEL_ID,
   }));
   ipcMain.handle("desktop:test-notification", () =>
     showDesktopNotification({
       title: "Notifications are working",
-      body: "CptSpaceDust can send Windows notifications from this computer.",
+      body: "CrewDeck can send Windows notifications from this computer.",
       route: "AppSettings.html",
     }),
   );
@@ -531,9 +549,7 @@ if (!gotSingleInstanceLock) {
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
-    const link = argv.find((value) =>
-      value.startsWith(`${DEEP_LINK_SCHEME}://`),
-    );
+    const link = argv.find((value) => parseDeepLink(value));
     if (link) deliverDeepLink(link);
     else showMainWindow();
   });
@@ -542,14 +558,14 @@ if (!gotSingleInstanceLock) {
     deliverDeepLink(url);
   });
   app.whenReady().then(() => {
-    app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME);
+    DEEP_LINK_SCHEMES.forEach((scheme) =>
+      app.setAsDefaultProtocolClient(scheme),
+    );
     lockStore = new AppLockStore(
       path.join(app.getPath("userData"), "app-lock.json"),
     );
     locked = lockStore.settings.enabled;
-    const startupLink = process.argv.find((value) =>
-      value.startsWith(`${DEEP_LINK_SCHEME}://`),
-    );
+    const startupLink = process.argv.find((value) => parseDeepLink(value));
     if (startupLink) pendingDeepLink = startupLink;
     registerAppOrigin();
     configurePermissions();

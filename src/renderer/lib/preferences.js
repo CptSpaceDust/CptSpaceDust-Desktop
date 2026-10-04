@@ -1,3 +1,4 @@
+// Legacy storage keys are retained so the CrewDeck update preserves preferences, drafts, and unread state.
 const SETTINGS_KEY = "cptspacedust.desktop.preferences.v1";
 const READ_KEY = "cptspacedust.desktop.message-reads.v1";
 const UNREAD_KEY = "cptspacedust.desktop.message-unread.v1";

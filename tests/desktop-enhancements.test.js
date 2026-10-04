@@ -79,8 +79,8 @@ test("closing the desktop window keeps realtime notifications running in the tra
   const settings = read("src", "renderer", "components", "AppSettings.jsx");
 
   assert.match(main, /new Tray\(ICON_PATH\)/);
-  assert.match(main, /label: "Open CptSpaceDust"/);
-  assert.match(main, /label: "Quit CptSpaceDust"/);
+  assert.match(main, /label: "Open CrewDeck"/);
+  assert.match(main, /label: "Quit CrewDeck"/);
   assert.match(main, /mainWindow\.on\("close", \(event\) =>/);
   assert.match(
     main,

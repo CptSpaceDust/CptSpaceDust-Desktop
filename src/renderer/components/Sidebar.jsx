@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { Avatar } from "./ui";
+import BrandMark from "./BrandMark";
 
 const groups = [
   {
@@ -33,7 +34,8 @@ export default function Sidebar({ page, setPage, profile, onLogout, unread }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <strong>CptSpaceDust</strong>
+        <BrandMark className="sidebar-brand-mark" />
+        <strong>CrewDeck</strong>
       </div>
       <nav>
         {profile?.rank?.toLowerCase() === "captain" && (

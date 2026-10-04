@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, MessageSquareText } from "lucide-react";
 import { Modal } from "./ui";
 
-const DIALOG_EVENT = "cptspacedust:dialog";
+const DIALOG_EVENT = "crewdeck:dialog";
 
 function requestDialog(options) {
   return new Promise((resolve) => {

@@ -1289,6 +1289,21 @@ html[data-density="compact"] .settings-panel {
   text-align: center;
 }
 
+.mayu-loader-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #edf7ff;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.mayu-loader-brand .crewdeck-brand-mark {
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 0 10px rgba(80, 199, 255, 0.34));
+}
+
 .mayu-loader-art {
   position: relative;
   display: grid;
