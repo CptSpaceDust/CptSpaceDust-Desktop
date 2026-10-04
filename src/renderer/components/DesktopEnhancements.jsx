@@ -56,6 +56,9 @@ export function useMeetupReminders(userId) {
               "Meetup starting soon",
               `${item.meetup_type || "Your meetup"} starts at ${new Date(start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
               "MeetupCalendar.html",
+              {
+                hideWhenLocked: settings.hideNotificationContentWhenLocked,
+              },
             );
         }
       }
@@ -142,8 +145,8 @@ export function WhatsNew() {
             <div>
               <strong>Added</strong>
               <p>
-                A Windows notification-area icon with quick actions to open,
-                lock, or fully quit CptSpaceDust.
+                Automatic DM slow mode and an optional setting to hide
+                notification details while the app is locked.
               </p>
             </div>
           </article>
@@ -152,8 +155,8 @@ export function WhatsNew() {
             <div>
               <strong>Changed</strong>
               <p>
-                Closing the window now keeps messages, sounds, and desktop
-                notifications running in the background.
+                Messages and incoming calls now alert reliably while the app is
+                open, backgrounded, or locked.
               </p>
             </div>
           </article>
@@ -162,9 +165,8 @@ export function WhatsNew() {
             <div>
               <strong>Removed</strong>
               <p>
-                The old behavior that fully exited CptSpaceDust whenever the
-                window’s close button was used. No community features were
-                removed.
+                Stale call links that could restart the last call when Messages
+                was reopened. No community features were removed.
               </p>
             </div>
           </article>

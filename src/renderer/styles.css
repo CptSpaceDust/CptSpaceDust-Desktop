@@ -612,6 +612,24 @@ p {
   gap: 14px;
   padding: 21px;
 }
+.idea-card-content {
+  min-width: 0;
+}
+.idea-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+}
+.idea-card-footer small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.idea-card-footer .compact-button {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
 .idea-card h2,
 .collab-card h2 {
   margin: 7px 0;
@@ -624,6 +642,12 @@ p {
 }
 .idea-card small {
   color: #667991;
+}
+@media (max-width: 680px) {
+  .idea-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 .vote-column {
   border-right: 1px solid var(--line);

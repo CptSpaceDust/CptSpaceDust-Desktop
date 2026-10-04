@@ -29,9 +29,35 @@ test("message alerts are suppressed for the visible matching conversation", asyn
   assert.equal(shouldAlertForMessage(current, "a", false, true, true), false);
   assert.equal(shouldAlertForMessage(current, "b", false, true, true), true);
   assert.equal(shouldAlertForMessage(current, "a", true, true, true), true);
-  assert.equal(shouldAlertForMessage(current, "a", false, false, true), false);
+  assert.equal(shouldAlertForMessage(current, "a", false, false, true), true);
   assert.equal(shouldAlertForMessage(current, "a", false, true, false), true);
   assert.equal(shouldAlertForMessage(null, "a", false, true, true), true);
+});
+
+test("duplicate realtime and notification-row alerts collapse into one delivery", async () => {
+  const { claimConversationAlert, resetConversationAlertClaims } = await import(
+    "../src/renderer/lib/alertDelivery.mjs"
+  );
+  resetConversationAlertClaims();
+  assert.equal(claimConversationAlert("conversation-a", false, 1000), true);
+  assert.equal(claimConversationAlert("conversation-a", false, 1200), false);
+  assert.equal(claimConversationAlert("conversation-b", false, 1200), true);
+  assert.equal(claimConversationAlert("conversation-a", false, 3600), true);
+});
+
+test("rapid direct messages enable a short slow-mode cooldown", async () => {
+  const { recordDirectMessageBurst } = await import(
+    "../src/renderer/lib/messageBehavior.mjs"
+  );
+  let state = { history: [], blockedUntil: 0 };
+  for (const now of [1000, 2000, 3000]) {
+    state = recordDirectMessageBurst(state.history, now);
+    assert.equal(state.blockedUntil, 0);
+  }
+  state = recordDirectMessageBurst(state.history, 4000);
+  assert.equal(state.blockedUntil, 9000);
+  state = recordDirectMessageBurst(state.history, 13000);
+  assert.equal(state.blockedUntil, 0);
 });
 
 test("website message formatting preserves whitespace and safely escapes HTML", () => {

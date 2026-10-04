@@ -37,10 +37,22 @@ export async function playNotificationSound(options = {}) {
   return notificationAudio.play().catch(() => {});
 }
 
-export function startRingtone() {
+export async function startRingtone() {
+  const settings = getPreferences();
   ringtoneAudio ||= audioElement(ringtoneUrl, 0.78, true);
+  ringtoneAudio.volume = Math.max(
+    0,
+    Math.min(1, Number(settings.notificationVolume) / 100),
+  );
   ringtoneAudio.pause();
   ringtoneAudio.currentTime = 0;
+  if (settings.audioOutputDeviceId && ringtoneAudio.setSinkId) {
+    try {
+      await ringtoneAudio.setSinkId(settings.audioOutputDeviceId);
+    } catch {
+      /* The selected output may have been disconnected. */
+    }
+  }
   return ringtoneAudio.play().catch(() => {});
 }
 

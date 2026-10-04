@@ -35,6 +35,7 @@ let locked = false;
 let blurTimer;
 let failedAttempts = [];
 let pendingDeepLink = "";
+let pendingNotificationRoute = "";
 let pendingDisplaySourceId = "";
 const activeNotifications = new Set();
 let updateState = {
@@ -217,6 +218,18 @@ function deliverDeepLink(value) {
   showMainWindow();
 }
 
+function deliverPendingNotificationRoute() {
+  if (
+    locked ||
+    !pendingNotificationRoute ||
+    !mainWindow ||
+    mainWindow.webContents.isLoading()
+  )
+    return;
+  mainWindow.webContents.send("desktop:navigate", pendingNotificationRoute);
+  pendingNotificationRoute = "";
+}
+
 function isTrustedRendererOrigin(value) {
   try {
     const origin = new URL(value).origin;
@@ -324,6 +337,7 @@ function createWindow() {
       mainWindow.webContents.send("auth:deep-link", pendingDeepLink);
       pendingDeepLink = "";
     }
+    deliverPendingNotificationRoute();
   });
   mainWindow.on("blur", scheduleLock);
   mainWindow.on("focus", () => clearTimeout(blurTimer));
@@ -353,11 +367,12 @@ function setupIpc() {
         error: "Windows notifications are not supported on this system.",
       };
     try {
+      const hideContent = locked && Boolean(payload.hideWhenLocked);
       const notification = new Notification({
-        title: locked
+        title: hideContent
           ? "CptSpaceDust Community"
           : String(payload.title || "CptSpaceDust Community").slice(0, 120),
-        body: locked
+        body: hideContent
           ? "Unlock CptSpaceDust to view this notification."
           : String(payload.body || "").slice(0, 500),
         silent: true,
@@ -369,11 +384,10 @@ function setupIpc() {
       notification.on("click", () => {
         activeNotifications.delete(notification);
         showMainWindow();
-        if (payload.route && !locked)
-          mainWindow?.webContents.send(
-            "desktop:navigate",
-            String(payload.route),
-          );
+        if (payload.route) {
+          pendingNotificationRoute = String(payload.route);
+          deliverPendingNotificationRoute();
+        }
       });
       notification.show();
       return { ok: true };
@@ -434,6 +448,7 @@ function setupIpc() {
       failedAttempts = [];
       sendLockState();
       if (pendingDeepLink) deliverDeepLink(pendingDeepLink);
+      deliverPendingNotificationRoute();
       return { ok: true };
     }
     failedAttempts.push(now);

@@ -510,7 +510,7 @@ export function IdeasPage({ user, profile }) {
                   <strong>{item.votes.length}</strong>
                 </button>
               </div>
-              <div>
+              <div className="idea-card-content">
                 <div className="card-meta">
                   {captain(profile) ? (
                     <select
@@ -534,16 +534,18 @@ export function IdeasPage({ user, profile }) {
                 </div>
                 <h2>{item.title}</h2>
                 <p>{item.description}</p>
-                <small>Proposed by {item.username || "Crew member"}</small>
-                {(item.user_id === user.id || captain(profile)) && (
-                  <button
-                    className="button danger compact-button"
-                    onClick={() => remove(item)}
-                  >
-                    <Trash2 />
-                    Delete
-                  </button>
-                )}
+                <div className="idea-card-footer">
+                  <small>Proposed by {item.username || "Crew member"}</small>
+                  {(item.user_id === user.id || captain(profile)) && (
+                    <button
+                      className="button danger compact-button"
+                      onClick={() => remove(item)}
+                    >
+                      <Trash2 />
+                      Delete
+                    </button>
+                  )}
+                </div>
               </div>
             </article>
           ))}

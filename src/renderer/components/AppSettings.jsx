@@ -409,6 +409,10 @@ export default function AppSettings() {
           <p>
             Control Windows alerts, sounds, quiet hours, and meetup reminders.
           </p>
+          <p className="micro-copy">
+            Alerts and incoming-call sounds stay active while the app is locked.
+            You can optionally hide their details until you enter your PIN.
+          </p>
           <div
             className={`notification-health ${notificationStatus?.supported ? "ready" : "blocked"}`}
           >
@@ -447,6 +451,20 @@ export default function AppSettings() {
                 }
               />
               <span>Notify for messages I am not viewing</span>
+            </label>
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={preferences.hideNotificationContentWhenLocked}
+                disabled={!preferences.desktopNotifications}
+                onChange={(event) =>
+                  preference(
+                    "hideNotificationContentWhenLocked",
+                    event.target.checked,
+                  )
+                }
+              />
+              <span>Hide notification details while app is locked</span>
             </label>
           </div>
           <label className="check-field">

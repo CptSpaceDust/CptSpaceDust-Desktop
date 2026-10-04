@@ -92,6 +92,35 @@ test("closing the desktop window keeps realtime notifications running in the tra
   assert.match(settings, /Windows\s+notification area/);
 });
 
+test("locked and backgrounded apps keep private, reliable alert delivery", () => {
+  const main = read("src", "main.js");
+  const preload = read("src", "preload.js");
+  const app = read("src", "renderer", "App.jsx");
+  const settings = read("src", "renderer", "components", "AppSettings.jsx");
+
+  assert.match(app, /pollNotifications/);
+  assert.match(app, /\["INSERT", "UPDATE"\]/);
+  assert.match(app, /window\.setInterval\([^]*4000/);
+  assert.match(preload, /hideWhenLocked/);
+  assert.match(main, /locked && Boolean\(payload\.hideWhenLocked\)/);
+  assert.match(main, /pendingNotificationRoute/);
+  assert.match(main, /deliverPendingNotificationRoute\(\)/);
+  assert.match(settings, /Hide notification details while app is locked/);
+});
+
+test("Ideas Board actions and call routes have stable layouts and one-shot behavior", () => {
+  const community = read("src", "renderer", "pages", "CommunityPagesV2.jsx");
+  const messages = read("src", "renderer", "pages", "MessagesPageV2.jsx");
+  const styles = read("src", "renderer", "styles.css");
+
+  assert.match(community, /className="idea-card-footer"/);
+  assert.match(styles, /\.idea-card-footer/);
+  assert.match(styles, /overflow-wrap: anywhere/);
+  assert.match(messages, /onRouteConsumed\?\.\(\)/);
+  assert.match(messages, /\[route\?\.conversation, route\?\.call/);
+  assert.match(messages, /blockedUntil=\{slowUntil\}/);
+});
+
 test("community meetup times convert into a real instant", async () => {
   const { communityDateTime } = await import("../src/renderer/lib/time.js");
   const winter = communityDateTime("2026-01-10", "12:00");

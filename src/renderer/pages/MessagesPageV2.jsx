@@ -30,6 +30,7 @@ import MessageComposer, {
   MessageNotices,
   MessageReplyQuote,
 } from "../components/MessageComposer";
+import { recordDirectMessageBurst } from "../lib/messageBehavior.mjs";
 import { Room, RoomEvent, Track } from "livekit-client";
 import {
   changeGroupAvatar,
@@ -961,6 +962,7 @@ function DirectMessagesPage({
   profile,
   initialPerson,
   route,
+  onRouteConsumed,
   onShowGroups,
 }) {
   const [conversations, setConversations] = useState([]);
@@ -976,7 +978,14 @@ function DirectMessagesPage({
   const [call, setCall] = useState(null);
   const [replying, setReplying] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [slowUntil, setSlowUntil] = useState(0);
+  const dmBurstRef = useRef(new Map());
   const endRef = useRef();
+  useEffect(() => {
+    setSlowUntil(
+      selected ? dmBurstRef.current.get(selected.id)?.blockedUntil || 0 : 0,
+    );
+  }, [selected?.id]);
   useEffect(() => {
     const refresh = () => setReadRevision((value) => value + 1);
     window.addEventListener("message-reads", refresh);
@@ -1048,9 +1057,12 @@ function DirectMessagesPage({
     const found = conversations.find((x) => x.id === route.conversation);
     if (found) {
       setSelected(found);
-      if (route.call) setCall({ conversation: found, callId: route.call });
+      if (route.call) {
+        setCall({ conversation: found, callId: route.call });
+        onRouteConsumed?.();
+      }
     }
-  }, [route?.conversation, conversations.length]);
+  }, [route?.conversation, route?.call, conversations.length]);
   useEffect(() => {
     if (!selected) {
       setMessages([]);
@@ -1131,6 +1143,11 @@ function DirectMessagesPage({
     const input = e.currentTarget.elements.message;
     const content = input.value.trim();
     if (!content || !selected) return;
+    const burst = dmBurstRef.current.get(selected.id);
+    if ((burst?.blockedUntil || 0) > Date.now()) {
+      setSlowUntil(burst.blockedUntil);
+      return false;
+    }
     try {
       const blocked = await restrictionMessage(user.id, "messaging");
       if (blocked) {
@@ -1144,6 +1161,12 @@ function DirectMessagesPage({
         content,
         replying?.id || null,
       );
+      const nextBurst = recordDirectMessageBurst(
+        burst?.history || [],
+        Date.now(),
+      );
+      dmBurstRef.current.set(selected.id, nextBurst);
+      setSlowUntil(nextBurst.blockedUntil);
       setReplying(null);
     } catch (x) {
       setNotice(x.message);
@@ -1410,6 +1433,7 @@ function DirectMessagesPage({
                 people={[selected.person]}
                 placeholder={`Message ${selected.person?.username || "crew member"}`}
                 onSend={send}
+                blockedUntil={slowUntil}
               />
             </>
           ) : (
@@ -1737,7 +1761,13 @@ function ManageGroupButton({ group, user, onChanged, onNotice }) {
   );
 }
 
-function GroupMessagesPage({ user, profile, route, onShowDms }) {
+function GroupMessagesPage({
+  user,
+  profile,
+  route,
+  onRouteConsumed,
+  onShowDms,
+}) {
   const [groups, setGroups] = useState([]);
   const [selected, setSelected] = useState(null);
   const [details, setDetails] = useState(null);
@@ -1809,11 +1839,6 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
         if (live) {
           setDetails(group);
           setMessages(rows);
-          if (route?.call)
-            setCall({
-              conversation: { ...group, type: "group" },
-              callId: route.call,
-            });
         }
       })
       .catch((exception) => setError(exception.message));
@@ -1850,6 +1875,14 @@ function GroupMessagesPage({ user, profile, route, onShowDms }) {
       supabase.removeChannel(channel);
     };
   }, [selected?.id]);
+  useEffect(() => {
+    if (!route?.call || !details || details.id !== selected?.id) return;
+    setCall({
+      conversation: { ...details, type: "group" },
+      callId: route.call,
+    });
+    onRouteConsumed?.();
+  }, [route?.call, details?.id, selected?.id]);
   useEffect(
     () => endRef.current?.scrollIntoView({ behavior: "smooth" }),
     [messages.length],

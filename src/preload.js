@@ -8,8 +8,13 @@ function subscribe(channel, callback) {
 
 contextBridge.exposeInMainWorld("desktop", {
   platform: process.platform,
-  notify: (title, body, route = "") =>
-    ipcRenderer.invoke("desktop:notify", { title, body, route }),
+  notify: (title, body, route = "", options = {}) =>
+    ipcRenderer.invoke("desktop:notify", {
+      title,
+      body,
+      route,
+      hideWhenLocked: Boolean(options.hideWhenLocked),
+    }),
   notifications: {
     getStatus: () => ipcRenderer.invoke("desktop:notification-status"),
     test: () => ipcRenderer.invoke("desktop:test-notification"),

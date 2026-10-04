@@ -12,6 +12,7 @@ export const defaultPreferences = Object.freeze({
   messageNotifications: true,
   notificationSound: true,
   notificationVolume: 82,
+  hideNotificationContentWhenLocked: false,
   quietHours: false,
   quietStart: "22:00",
   quietEnd: "08:00",

@@ -30,6 +30,9 @@ import {
 import MessagesPage from "./pages/MessagesPageV2";
 import NotificationsPage from "./pages/NotificationsPage";
 import { useMessageAlerts } from "./lib/messageAlerts";
+import { activeConversation } from "./components/MessageComposer";
+import { shouldAlertForMessage } from "./lib/messageBehavior.mjs";
+import { claimConversationAlert } from "./lib/alertDelivery.mjs";
 import CaptainPage from "./pages/CaptainPage";
 import UpdateOverlay from "./components/UpdateVisual";
 import { InAppDialogHost } from "./components/InAppDialog";
@@ -41,7 +44,9 @@ import {
 } from "./components/DesktopEnhancements";
 import {
   getPreferences,
+  isMuted,
   isQuietTime,
+  markConversationUnread,
   totalMessageUnread,
 } from "./lib/preferences";
 
@@ -183,6 +188,10 @@ export default function App() {
         window.desktop.notify(
           "Site access suspended",
           `Your account is restricted until ${new Date(site.expires_at).toLocaleString()}.`,
+          "",
+          {
+            hideWhenLocked: getPreferences().hideNotificationContentWhenLocked,
+          },
         );
         await supabase.auth.signOut();
         return;
@@ -238,6 +247,107 @@ export default function App() {
     if (!session?.user) return;
     const userId = session.user.id;
     let alive = true;
+    let bootstrapped = false;
+    const listeningSince = Date.now() - 2000;
+    const fingerprints = new Map();
+    const fingerprint = (item) =>
+      [
+        item?.id,
+        item?.updated_at,
+        item?.created_at,
+        item?.is_read,
+        item?.title,
+        item?.message,
+        item?.link,
+      ].join("|");
+    const cancelledCall = (item) => {
+      if (item?.type !== "voice_call") return false;
+      try {
+        const target = new URL(item.link || "", "https://app.local/");
+        return target.searchParams.get("cancelled") === "1";
+      } catch {
+        return false;
+      }
+    };
+    async function deliver(item, force = false) {
+      if (!alive || !item?.id) return;
+      const nextFingerprint = fingerprint(item);
+      if (!force && fingerprints.get(item.id) === nextFingerprint) return;
+      fingerprints.set(item.id, nextFingerprint);
+      if (item.is_read) return;
+
+      const preferences = getPreferences();
+      if (item.type === "voice_call") {
+        if (cancelledCall(item)) {
+          if (incomingCallRef.current?.id === item.id) {
+            stopRingtone();
+            setIncomingCall(null);
+          }
+          return;
+        }
+        setIncomingCall(item);
+        startRingtone();
+        if (preferences.desktopNotifications && !isQuietTime(preferences))
+          await window.desktop.notify(
+            item.title || "Incoming voice call",
+            item.message || "A crew member wants to call you!",
+            item.link || "Notifications.html",
+            {
+              hideWhenLocked: preferences.hideNotificationContentWhenLocked,
+            },
+          );
+        return;
+      }
+
+      if (item.type === "message") {
+        const route = parseNavigation(item.link);
+        const group = Boolean(route.group);
+        const contextId = route.group || route.conversation;
+        if (
+          contextId &&
+          !shouldAlertForMessage(
+            activeConversation.current,
+            contextId,
+            group,
+            document.hasFocus(),
+            document.visibilityState === "visible",
+          )
+        )
+          return;
+        if (contextId) markConversationUnread(contextId, group);
+        if (
+          !preferences.desktopNotifications ||
+          !preferences.messageNotifications ||
+          isQuietTime(preferences) ||
+          (contextId && isMuted(contextId, group, preferences)) ||
+          !claimConversationAlert(contextId, group)
+        )
+          return;
+        playNotificationSound();
+        setToast(item);
+        await window.desktop.notify(
+          item.title || "New message",
+          item.message || "You have a new message.",
+          item.link || "Messages.html",
+          {
+            hideWhenLocked: preferences.hideNotificationContentWhenLocked,
+          },
+        );
+        return;
+      }
+
+      if (!isQuietTime(preferences)) playNotificationSound();
+      setToast(item);
+      if (preferences.desktopNotifications && !isQuietTime(preferences))
+        await window.desktop.notify(
+          item.title || "Community update",
+          item.message || "You have a new notification.",
+          item.link || "Notifications.html",
+          {
+            hideWhenLocked: preferences.hideNotificationContentWhenLocked,
+          },
+        );
+    }
     const refreshUnread = async () => {
       const { count } = await supabase
         .from("notifications")
@@ -245,6 +355,40 @@ export default function App() {
         .eq("user_id", userId)
         .eq("is_read", false);
       if (alive) setUnread(count || 0);
+    };
+    const pollNotifications = async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(80);
+      if (!alive || error) return;
+      const rows = data || [];
+      if (!bootstrapped) {
+        bootstrapped = true;
+        for (const item of rows) fingerprints.set(item.id, fingerprint(item));
+        const pending = rows
+          .filter((item) => {
+            const created = new Date(item.created_at).getTime();
+            return (
+              !item.is_read &&
+              (created >= listeningSince ||
+                (item.type === "voice_call" &&
+                  !cancelledCall(item) &&
+                  Date.now() - created < 90000))
+            );
+          })
+          .reverse();
+        for (const item of pending) await deliver(item, true);
+      } else {
+        for (const item of [...rows].reverse()) await deliver(item);
+      }
+      const ringing = incomingCallRef.current;
+      if (ringing && !rows.some((item) => item.id === ringing.id)) {
+        stopRingtone();
+        setIncomingCall(null);
+      }
     };
     const notificationsChanged = () => refreshUnread();
     refreshUnread();
@@ -268,47 +412,21 @@ export default function App() {
             }
             return;
           }
-          if (payload.eventType !== "INSERT") return;
-          const item = payload.new;
-          // Per-message alerts handle chat messages, including repeated messages
-          // while the website's notification row is already unread.
-          if (
-            item.type === "message" &&
-            /Conversation\.html/i.test(item.link || "")
-          )
-            return;
-          let cancelledCall = false;
-          if (item.type === "voice_call") {
-            try {
-              const target = new URL(item.link || "", "https://app.local/");
-              cancelledCall = target.searchParams.get("cancelled") === "1";
-            } catch {
-              cancelledCall = false;
-            }
-          }
-          if (item.type === "voice_call" && !cancelledCall) {
-            setIncomingCall(item);
-            startRingtone();
-          } else {
-            if (cancelledCall) {
-              stopRingtone();
-              setIncomingCall(null);
-            }
-            if (!isQuietTime(getPreferences())) playNotificationSound();
-            setToast(item);
-          }
-          const preferences = getPreferences();
-          if (preferences.desktopNotifications && !isQuietTime(preferences))
-            window.desktop.notify(
-              item.title || "Community update",
-              item.message || "You have a new notification.",
-              item.link || "Notifications.html",
-            );
+          if (["INSERT", "UPDATE"].includes(payload.eventType))
+            deliver(payload.new).catch(console.error);
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") pollNotifications();
+      });
+    const pollTimer = window.setInterval(() => {
+      refreshUnread();
+      pollNotifications();
+    }, 4000);
+    pollNotifications();
     return () => {
       alive = false;
+      window.clearInterval(pollTimer);
       window.removeEventListener("notifications-changed", notificationsChanged);
       supabase.removeChannel(channel);
     };
@@ -321,6 +439,10 @@ export default function App() {
     }
     setPage(next.page);
     if (next.page === "messages") setMessageRoute(next);
+  }
+  function selectPage(nextPage) {
+    if (nextPage === "messages") setMessageRoute({ page: "messages" });
+    setPage(nextPage);
   }
   async function closeIncomingCall(open = false) {
     const item = incomingCallRef.current;
@@ -402,6 +524,11 @@ export default function App() {
             {...props}
             initialPerson={initialPerson}
             route={messageRoute}
+            onRouteConsumed={() =>
+              setMessageRoute((current) =>
+                current?.call ? { ...current, call: null } : current,
+              )
+            }
           />
         );
       case "notifications":
@@ -450,9 +577,7 @@ export default function App() {
       <InactivityLock enabled={lock.enabled} />
       <Sidebar
         page={page}
-        setPage={(id) => {
-          setPage(id);
-        }}
+        setPage={selectPage}
         profile={profile}
         onLogout={logout}
         unread={unread}
@@ -466,7 +591,7 @@ export default function App() {
               className={page === "messages" ? "active" : ""}
               title="Messages"
               aria-label="Messages"
-              onClick={() => setPage("messages")}
+              onClick={() => selectPage("messages")}
             >
               <MessageCircle />
               {messageUnread > 0 && (
@@ -477,7 +602,7 @@ export default function App() {
               className={page === "notifications" ? "active" : ""}
               title="Notifications"
               aria-label="Notifications"
-              onClick={() => setPage("notifications")}
+              onClick={() => selectPage("notifications")}
             >
               <Bell />
               {unread > 0 && <b>{unread}</b>}

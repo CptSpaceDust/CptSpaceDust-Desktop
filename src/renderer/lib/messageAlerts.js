@@ -3,6 +3,7 @@ import { supabase } from "./supabase";
 import { playNotificationSound } from "./sounds";
 import { activeConversation } from "../components/MessageComposer";
 import { shouldAlertForMessage } from "./messageBehavior.mjs";
+import { claimConversationAlert } from "./alertDelivery.mjs";
 import {
   getPreferences,
   isMuted,
@@ -73,11 +74,15 @@ export function useMessageAlerts(userId) {
         )
       )
         return;
+      if (!claimConversationAlert(id, group)) return;
       playNotificationSound();
       await window.desktop.notify(
         sender?.username || "New message",
         message.content || "You have a new message.",
         `Conversation.html?${group ? "group" : "id"}=${encodeURIComponent(id)}`,
+        {
+          hideWhenLocked: settings.hideNotificationContentWhenLocked,
+        },
       );
     }
     const channel = supabase

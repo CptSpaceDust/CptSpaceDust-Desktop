@@ -85,6 +85,7 @@ export default function MessageComposer({
   people,
   placeholder,
   onSend,
+  blockedUntil = 0,
 }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -92,6 +93,7 @@ export default function MessageComposer({
     getPreferences().enterToSend !== false,
   );
   const [typers, setTypers] = useState({});
+  const [clock, setClock] = useState(Date.now());
   const channelRef = useRef(null);
   const inputRef = useRef(null);
   const sendingRef = useRef(false);
@@ -178,6 +180,16 @@ export default function MessageComposer({
     };
   }, [id, group, user.id]);
   useEffect(() => {
+    setClock(Date.now());
+    if (blockedUntil <= Date.now()) return undefined;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setClock(now);
+      if (now >= blockedUntil) window.clearInterval(timer);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [blockedUntil]);
+  useEffect(() => {
     const markReadWhenVisible = () => {
       if (!document.hidden && document.hasFocus())
         markConversationRead(id, group);
@@ -198,9 +210,13 @@ export default function MessageComposer({
       (key) =>
         people.find((person) => person.id === key)?.username || "Someone",
     );
+  const slowModeSeconds = Math.max(
+    0,
+    Math.ceil((Number(blockedUntil) - clock) / 1000),
+  );
   async function submit(event) {
     event.preventDefault();
-    if (sendingRef.current || !draft.trim()) return;
+    if (sendingRef.current || !draft.trim() || slowModeSeconds > 0) return;
     sendingRef.current = true;
     setBusy(true);
     try {
@@ -219,11 +235,13 @@ export default function MessageComposer({
   return (
     <>
       <div className="desktop-typing" role="status" aria-live="polite">
-        {names.length > 1
-          ? "Many people typing…"
-          : names.length
-            ? `${names[0]} is typing…`
-            : ""}
+        {slowModeSeconds > 0
+          ? `Slow mode · send again in ${slowModeSeconds}s`
+          : names.length > 1
+            ? "Many people typing…"
+            : names.length
+              ? `${names[0]} is typing…`
+              : ""}
       </div>
       <form className="composer" onSubmit={submit}>
         <textarea
@@ -259,7 +277,7 @@ export default function MessageComposer({
         />
         <button
           className="send-button"
-          disabled={busy || !draft.trim()}
+          disabled={busy || !draft.trim() || slowModeSeconds > 0}
           aria-label="Send message"
         >
           <Send />
