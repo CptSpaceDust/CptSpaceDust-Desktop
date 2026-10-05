@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Dependency security audit
+        run: npm audit --audit-level=moderate
       - run: npm test
       - name: Build Windows release
         run: npm run dist -- --publish never
