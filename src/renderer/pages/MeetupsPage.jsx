@@ -19,9 +19,18 @@ import {
   getProfiles,
   respondToMeetup,
   restrictionMessage,
+  setLongTermMeetupAvailability,
 } from "../lib/data";
 import { useLoader } from "../lib/hooks";
-import { formatMeetupLocal, localTimeZoneName } from "../lib/time";
+import {
+  availabilityInstantRange,
+  formatMeetupLocal,
+  localDayRange,
+  localTimeZoneName,
+  meetupInstant,
+  meetupLocalDateKey,
+  zonedDateTime,
+} from "../lib/time";
 import { confirmInApp } from "../components/InAppDialog";
 import {
   Empty,
@@ -44,12 +53,56 @@ const personName = (profiles, id) =>
   profiles.find((person) => person.id === id)?.username || "Crew member";
 const involves = (item, ids) =>
   ids.some((id) => id && (item.user_id === id || item.with_user_id === id));
+const overlaps = (startA, endA, startB, endB) => startA < endB && endA > startB;
+const availabilityOverlapsDay = (item, key) => {
+  const [blockStart, blockEnd] = availabilityInstantRange(item);
+  const [dayStart, dayEnd] = localDayRange(key);
+  return overlaps(blockStart, blockEnd, dayStart, dayEnd);
+};
+const localAvailabilityLabel = (item) => {
+  if (item.indefinite) return "Unavailable until you turn this off";
+  const [start, end] = availabilityInstantRange(item);
+  const sameZone = (item.time_zone || "America/Denver") === localTimeZoneName();
+  if (item.all_day && sameZone) return "All day";
+  const startLabel = start.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const endLabel = end.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${startLabel}–${endLabel}`;
+};
 
 function AvailabilityModal({ user, rows, onClose, onSaved }) {
   const [allDay, setAllDay] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [longTermBusy, setLongTermBusy] = useState(false);
   const [message, setMessage] = useState("");
   const mine = rows.filter((item) => item.user_id === user.id);
+  const longTerm = mine.find((item) => item.indefinite);
+  async function toggleLongTerm(event) {
+    const enabled = event.target.checked;
+    setLongTermBusy(true);
+    setMessage("");
+    try {
+      await setLongTermMeetupAvailability(
+        user.id,
+        enabled,
+        localTimeZoneName(),
+      );
+      await onSaved();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLongTermBusy(false);
+    }
+  }
   async function save(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -61,6 +114,7 @@ function AvailabilityModal({ user, rows, onClose, onSaved }) {
         all_day: allDay,
         start_time: form.get("start"),
         end_time: form.get("end"),
+        time_zone: localTimeZoneName(),
       });
       event.currentTarget.reset();
       setAllDay(true);
@@ -81,16 +135,27 @@ function AvailabilityModal({ user, rows, onClose, onSaved }) {
         <form className="availability-form" onSubmit={save}>
           <p className="micro-copy">
             Block a whole day or only the hours when you will not be online.
-            Times use Mountain Time. Other crew members see availability, never
-            the reason.
+            Everything is entered and shown in your time zone (
+            {localTimeZoneName()}). Other crew members see availability in their
+            own local time, never the reason.
           </p>
-          <Field label="Date">
+          <label className="availability-long-toggle">
             <input
-              name="date"
-              type="date"
-              min={new Date().toISOString().slice(0, 10)}
-              required
+              type="checkbox"
+              role="switch"
+              checked={Boolean(longTerm)}
+              disabled={longTermBusy}
+              onChange={toggleLongTerm}
             />
+            <span>
+              <strong>I’m off for a long time</strong>
+              <small>
+                Makes every upcoming day unavailable until you turn this off.
+              </small>
+            </span>
+          </label>
+          <Field label="Date">
+            <input name="date" type="date" min={dateKey(new Date())} required />
           </Field>
           <label className="check-field">
             <input
@@ -124,16 +189,14 @@ function AvailabilityModal({ user, rows, onClose, onSaved }) {
             <article key={item.id}>
               <div>
                 <strong>
-                  {new Date(`${item.block_date}T12:00:00`).toLocaleDateString(
-                    undefined,
-                    { weekday: "short", month: "short", day: "numeric" },
-                  )}
+                  {item.indefinite
+                    ? "Away indefinitely"
+                    : availabilityInstantRange(item)[0].toLocaleDateString(
+                        undefined,
+                        { weekday: "short", month: "short", day: "numeric" },
+                      )}
                 </strong>
-                <span>
-                  {item.all_day
-                    ? "All day"
-                    : `${item.start_time.slice(0, 5)}–${item.end_time.slice(0, 5)}`}
-                </span>
+                <span>{localAvailabilityLabel(item)}</span>
               </div>
               <button
                 type="button"
@@ -181,7 +244,9 @@ export default function MeetupsPage({ user, profile }) {
   const approved = meetups.filter((item) => item.status === "approved");
   const selectedBlocks = availability.filter(
     (item) =>
-      item.block_date === selected && selectedIds.includes(item.user_id),
+      selected &&
+      selectedIds.includes(item.user_id) &&
+      availabilityOverlapsDay(item, selected),
   );
   const loading =
     meetupLoader.loading || profileLoader.loading || availabilityLoader.loading;
@@ -212,10 +277,12 @@ export default function MeetupsPage({ user, profile }) {
 
   const dayState = (key) => {
     const blocks = availability.filter(
-      (item) => item.block_date === key && selectedIds.includes(item.user_id),
+      (item) =>
+        selectedIds.includes(item.user_id) &&
+        availabilityOverlapsDay(item, key),
     );
     const scheduled = approved.some(
-      (item) => item.meetup_date === key && involves(item, selectedIds),
+      (item) => meetupLocalDateKey(item) === key && involves(item, selectedIds),
     );
     if (blocks.some((item) => item.all_day)) return "offline";
     if (scheduled) return "scheduled";
@@ -236,13 +303,20 @@ export default function MeetupsPage({ user, profile }) {
       const end = start + Number(form.get("duration")) * 60;
       if (end > 24 * 60)
         throw new Error("Choose a start time that ends before midnight.");
-      const overlap = availability.some(
-        (item) =>
-          item.block_date === selected &&
-          selectedIds.includes(item.user_id) &&
-          (item.all_day ||
-            (start < minutes(item.end_time) && end > minutes(item.start_time))),
+      const requestedStart = zonedDateTime(
+        selected,
+        form.get("time"),
+        localTimeZoneName(),
       );
+      const requestedEnd = new Date(
+        requestedStart.getTime() +
+          Number(form.get("duration")) * 60 * 60 * 1000,
+      );
+      const overlap = availability.some((item) => {
+        if (!selectedIds.includes(item.user_id)) return false;
+        const [blockStart, blockEnd] = availabilityInstantRange(item);
+        return overlaps(requestedStart, requestedEnd, blockStart, blockEnd);
+      });
       if (overlap)
         throw new Error(
           "That time overlaps unavailable hours. Choose another time.",
@@ -253,6 +327,7 @@ export default function MeetupsPage({ user, profile }) {
         with_user_id: selectedPerson,
         meetup_date: selected,
         start_time: form.get("time"),
+        time_zone: localTimeZoneName(),
         duration: Number(form.get("duration")),
         message: String(form.get("message") || "").trim(),
         vrc_username: String(form.get("vrc")).trim(),
@@ -322,7 +397,7 @@ export default function MeetupsPage({ user, profile }) {
       <PageHeader
         eyebrow="Meetup calendar"
         title="Plan time together"
-        description={`Choose a crew member, compare availability, and send an invitation. Times use Mountain Time and are also shown in your local zone (${localTimeZoneName()}).`}
+        description={`Choose a crew member, compare availability, and send an invitation. All dates and times are shown in your time zone (${localTimeZoneName()}).`}
         action={
           <div className="header-actions">
             <button
@@ -350,9 +425,11 @@ export default function MeetupsPage({ user, profile }) {
         <>
           <section className="panel meetup-person-picker">
             <div>
-              <span className="eyebrow">Step 1</span>
               <h2>Who are you meeting?</h2>
-              <p>The calendar changes to show both people’s availability.</p>
+              <p>
+                The calendar shows each person’s availability based on how
+                they’ve configured it.
+              </p>
             </div>
             <Field label="Crew member">
               <select
@@ -493,19 +570,18 @@ export default function MeetupsPage({ user, profile }) {
                 {myMeetups.map((item) => {
                   const invited = item.with_user_id === user.id;
                   const otherId = invited ? item.user_id : item.with_user_id;
+                  const localStart = meetupInstant(item);
                   return (
                     <article
                       className="panel meetup-card meetup-request-details"
                       key={item.id}
                     >
                       <div className="date-tile">
-                        <strong>
-                          {new Date(`${item.meetup_date}T12:00:00`).getDate()}
-                        </strong>
+                        <strong>{localStart.getDate()}</strong>
                         <span>
-                          {new Date(
-                            `${item.meetup_date}T12:00:00`,
-                          ).toLocaleDateString(undefined, { month: "short" })}
+                          {localStart.toLocaleDateString(undefined, {
+                            month: "short",
+                          })}
                         </span>
                       </div>
                       <div>
@@ -514,7 +590,11 @@ export default function MeetupsPage({ user, profile }) {
                             {item.status}
                           </span>
                           <span>
-                            {item.start_time?.slice(0, 5)} · {item.duration}h
+                            {localStart.toLocaleTimeString(undefined, {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}{" "}
+                            · {item.duration}h
                           </span>
                         </div>
                         <h3>
@@ -526,8 +606,11 @@ export default function MeetupsPage({ user, profile }) {
                           {item.message || "No notes."}
                         </p>
                         <p className="meetup-local-time">
-                          Your time:{" "}
-                          {formatMeetupLocal(item.meetup_date, item.start_time)}
+                          {formatMeetupLocal(
+                            item.meetup_date,
+                            item.start_time,
+                            item.time_zone || "America/Denver",
+                          )}
                         </p>
                         {item.with_user_id && (
                           <small>Invitation: {item.invitee_status}</small>
@@ -600,9 +683,7 @@ export default function MeetupsPage({ user, profile }) {
                   {selectedBlocks.map((item) => (
                     <span key={item.id}>
                       {personName(profiles, item.user_id)}:{" "}
-                      {item.all_day
-                        ? "all day"
-                        : `${item.start_time.slice(0, 5)}–${item.end_time.slice(0, 5)}`}
+                      {localAvailabilityLabel(item)}
                     </span>
                   ))}
                 </div>
@@ -610,7 +691,10 @@ export default function MeetupsPage({ user, profile }) {
               <section>
                 <h3>Meetup time</h3>
                 <div className="form-grid">
-                  <Field label="Preferred start time">
+                  <Field
+                    label="Preferred start time"
+                    hint={`Your time · ${localTimeZoneName()}`}
+                  >
                     <input
                       name="time"
                       type="time"

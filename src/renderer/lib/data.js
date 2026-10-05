@@ -1,4 +1,10 @@
 import { supabase } from "./supabase";
+import {
+  localDateKey,
+  meetupInstant,
+  meetupLocalDateKey,
+  zonedDateTime,
+} from "./time";
 
 function unwrap(result) {
   if (result.error) throw result.error;
@@ -305,11 +311,17 @@ export async function getMeetups() {
 }
 
 export async function getMeetupAvailability() {
+  const earliestRelevantDay = new Date();
+  earliestRelevantDay.setDate(earliestRelevantDay.getDate() - 2);
   return unwrap(
     await supabase
       .from("meetup_availability_blocks")
-      .select("id,user_id,block_date,all_day,start_time,end_time")
-      .gte("block_date", new Date().toISOString().slice(0, 10))
+      .select(
+        "id,user_id,block_date,all_day,start_time,end_time,time_zone,indefinite",
+      )
+      .or(
+        `indefinite.eq.true,block_date.gte.${localDateKey(earliestRelevantDay)}`,
+      )
       .order("block_date")
       .order("start_time"),
   );
@@ -325,6 +337,7 @@ export async function addMeetupAvailability(userId, fields) {
         all_day: Boolean(fields.all_day),
         start_time: fields.all_day ? null : fields.start_time,
         end_time: fields.all_day ? null : fields.end_time,
+        time_zone: fields.time_zone,
       })
       .select()
       .single(),
@@ -338,6 +351,53 @@ export async function deleteMeetupAvailability(id, userId) {
       .delete()
       .eq("id", id)
       .eq("user_id", userId),
+  );
+}
+
+export async function setLongTermMeetupAvailability(userId, enabled, timeZone) {
+  const existing = unwrap(
+    await supabase
+      .from("meetup_availability_blocks")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("indefinite", true)
+      .maybeSingle(),
+  );
+  if (!enabled) {
+    if (!existing) return null;
+    return unwrap(
+      await supabase
+        .from("meetup_availability_blocks")
+        .delete()
+        .eq("id", existing.id)
+        .eq("user_id", userId),
+    );
+  }
+  const values = {
+    block_date: localDateKey(new Date()),
+    all_day: true,
+    start_time: null,
+    end_time: null,
+    time_zone: timeZone,
+    indefinite: true,
+  };
+  if (existing) {
+    return unwrap(
+      await supabase
+        .from("meetup_availability_blocks")
+        .update(values)
+        .eq("id", existing.id)
+        .eq("user_id", userId)
+        .select()
+        .single(),
+    );
+  }
+  return unwrap(
+    await supabase
+      .from("meetup_availability_blocks")
+      .insert({ user_id: userId, ...values })
+      .select()
+      .single(),
   );
 }
 
@@ -355,17 +415,22 @@ export async function createMeetup(userId, fields) {
   const occupied = unwrap(
     await supabase
       .from("meetup_requests")
-      .select("id,user_id,with_user_id")
-      .eq("meetup_date", fields.meetup_date)
+      .select(
+        "id,user_id,with_user_id,meetup_date,start_time,time_zone,duration",
+      )
       .eq("status", "approved")
       .limit(100),
   );
   if (
-    (!fields.with_user_id && occupied.length) ||
+    (!fields.with_user_id &&
+      occupied.some(
+        (item) => meetupLocalDateKey(item) === fields.meetup_date,
+      )) ||
     occupied.some(
       (item) =>
-        [item.user_id, item.with_user_id].includes(userId) ||
-        [item.user_id, item.with_user_id].includes(fields.with_user_id),
+        meetupLocalDateKey(item) === fields.meetup_date &&
+        ([item.user_id, item.with_user_id].includes(userId) ||
+          [item.user_id, item.with_user_id].includes(fields.with_user_id)),
     )
   )
     throw new Error(
@@ -376,14 +441,19 @@ export async function createMeetup(userId, fields) {
   const duplicate = unwrap(
     await supabase
       .from("meetup_requests")
-      .select("id,status")
+      .select("id,status,meetup_date,start_time,time_zone")
       .eq("user_id", userId)
-      .eq("meetup_date", fields.meetup_date)
-      .eq("start_time", fields.start_time)
       .in("status", ["pending", "approved"])
-      .maybeSingle(),
+      .limit(100),
   );
-  if (duplicate)
+  const requestedInstant = zonedDateTime(
+    fields.meetup_date,
+    fields.start_time,
+    fields.time_zone,
+  ).getTime();
+  if (
+    duplicate.some((item) => meetupInstant(item).getTime() === requestedInstant)
+  )
     throw new Error("You already requested a meetup at this time.");
   const created = unwrap(
     await supabase

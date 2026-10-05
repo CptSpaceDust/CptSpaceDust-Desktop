@@ -2,6 +2,26 @@
 
 Every published CrewDeck release is documented here and copied into its GitHub release notes.
 
+## [1.5.0] - 2026-10-04
+
+### Added
+
+- Local-time-zone meetup scheduling so every member sees dates, availability, and start times in their own time zone.
+- A long-term unavailable option that blocks upcoming meetup dates until the member turns it off.
+
+### Changed
+
+- Redesigned Ideas Board cards make vote totals, authors, statuses, and actions easier to scan.
+- The Ideas Board guide now appears only on the Ideas Board.
+- Crew Directory presence indicators now stay aligned with profile pictures.
+- Captain meetup reports use the same local-time conversion as member calendars.
+- Electron, Vite, and supporting build packages were updated to patched versions.
+- Privileged database functions now use a private schema with narrow public entry points.
+
+### Removed
+
+- The CrewDeck GitHub Wiki and its documentation-only preview resources.
+
 ## [1.4.0] - 2026-10-04
 
 ### Added

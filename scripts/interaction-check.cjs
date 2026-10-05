@@ -14,7 +14,7 @@ async function main() {
       const values={getProfile:async id=>id==='me'?me:other,getProfiles:async()=>[other],getConversations:async()=>[{id:'conversation',person:other}],getMessages:async()=>[{id:'message',sender_id:'me',content:'Hi',created_at:new Date().toISOString()}],getMessageRequests:async()=>[],getActiveRestrictions:async()=>[],getIntroductions:async()=>[],editMessage:async(id,user,content)=>{if(content==='fail')throw Error('Test save failure');window.savedMessage=content;return true;}};
       ${names.map(name => `export const ${name}=values.${name}|| (async()=>[]);`).join('\n')}`;
     const supabaseMock = `const query=new Proxy({}, {get:(_,name)=>name==='then'?resolve=>Promise.resolve(resolve({data:[],count:0})):()=>query});export const supabase={from:()=>query,channel:()=>query,removeChannel:()=>{},auth:{getSession:async()=>({data:{session:{user:{id:'me'}}}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),mfa:{getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:'aal1',nextLevel:'aal1'}})}}};export const HCAPTCHA_HOST='localhost';export const HCAPTCHA_SITE_KEY='test';`;
-    await require('esbuild').build({entryPoints:[path.join(root,'src/renderer/main.jsx')],bundle:true,outfile:path.join(dir,'app.js'),jsx:'automatic',loader:{'.css':'css'},plugins:[{name:'fixtures',setup(build){build.onLoad({filter:/lib[\\/]data\.js$/},()=>({contents:mocks,loader:'js'}));build.onLoad({filter:/lib[\\/]supabase\.js$/},()=>({contents:supabaseMock,loader:'js'}));}}]});
+    await require('esbuild').build({entryPoints:[path.join(root,'src/renderer/main.jsx')],bundle:true,outfile:path.join(dir,'app.js'),jsx:'automatic',assetNames:'assets/[name]-[hash]',loader:{'.css':'css','.png':'file','.mp3':'file','.wav':'file'},plugins:[{name:'fixtures',setup(build){build.onLoad({filter:/lib[\\/]data\.js$/},()=>({contents:mocks,loader:'js'}));build.onLoad({filter:/lib[\\/]supabase\.js$/},()=>({contents:supabaseMock,loader:'js'}));}}]});
     fs.writeFileSync(path.join(dir,'index.html'),'<html><head><link rel="stylesheet" href="app.css"></head><body><div id="root"></div><script src="app.js"></script></body></html>');
     const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
     const child=require('node:child_process').spawn(require('electron'),[__filename,dir],{stdio:'inherit',env});
@@ -44,9 +44,10 @@ async function main() {
     const expanded=await run("document.querySelector('.message.mine').getBoundingClientRect().width");
     if(expanded<=compact)throw Error('Message did not expand on focus');
     await click('Edit message');await wait("!!document.querySelector('[role=dialog] textarea')");
-    async function edit(value){await run(`(()=>{const input=document.querySelector('[role=dialog] textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`);await click('Save changes');}
-    await edit('fail');await wait("document.body.innerText.includes('Test save failure')");
-    await edit('Updated message');await wait("window.savedMessage==='Updated message' && !document.querySelector('[role=dialog]')");
+    async function editFailure(){await run("(()=>{const input=document.querySelector('[role=dialog] textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'fail');input.dispatchEvent(new Event('input',{bubbles:true}));})()");await click('Save changes');}
+    async function editSuccess(){await run("(()=>{const input=document.querySelector('[role=dialog] textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Updated message');input.dispatchEvent(new Event('input',{bubbles:true}));})()");await click('Save changes');}
+    await editFailure();await wait("document.body.innerText.includes('Test save failure')");
+    await editSuccess();await wait("window.savedMessage==='Updated message' && !document.querySelector('[role=dialog]')");
     await wait("document.querySelector('.message.mine p').textContent==='Updated message'");
     await click('Edit message');await click('Cancel');await wait("!document.querySelector('[role=dialog]')");
     if(errors.length)throw Error(errors.join('\n'));

@@ -4,6 +4,7 @@ import { read, captainFunction } from "../lib/captain";
 import { Modal, Field } from "./ui";
 import CaptainMusic from "./CaptainMusic";
 import CaptainMessages from "./CaptainMessages";
+import { meetupInstant } from "../lib/time";
 
 export const restrictionNames = {
   site: "Site access",
@@ -393,14 +394,20 @@ export default function CaptainControls({
                       {item.with_user_id && (
                         <p>✉️ Invitation {item.invitee_status || "pending"}</p>
                       )}
-                      <p>📅 {item.meetup_date}</p>
+                      <p>
+                        📅{" "}
+                        {meetupInstant(item).toLocaleDateString(undefined, {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
                       <p>
                         ⏰{" "}
-                        {new Date(
-                          `2000-01-01T${item.start_time}`,
-                        ).toLocaleTimeString([], {
+                        {meetupInstant(item).toLocaleTimeString(undefined, {
                           hour: "numeric",
                           minute: "2-digit",
+                          timeZoneName: "short",
                         })}
                       </p>
                       <p>⌛ {item.duration} hour(s)</p>

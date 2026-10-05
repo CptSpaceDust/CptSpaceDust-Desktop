@@ -132,9 +132,22 @@ test("Ideas Board actions and call routes have stable layouts and one-shot behav
 });
 
 test("community meetup times convert into a real instant", async () => {
-  const { communityDateTime } = await import("../src/renderer/lib/time.js");
+  const { communityDateTime, zonedDateTime } = await import(
+    "../src/renderer/lib/time.js"
+  );
   const winter = communityDateTime("2026-01-10", "12:00");
   const summer = communityDateTime("2026-07-10", "12:00");
   assert.equal(winter.toISOString(), "2026-01-10T19:00:00.000Z");
   assert.equal(summer.toISOString(), "2026-07-10T18:00:00.000Z");
+
+  const meetup = zonedDateTime("2026-01-10", "19:00", "America/Denver");
+  assert.equal(meetup.toISOString(), "2026-01-11T02:00:00.000Z");
+  assert.equal(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(meetup),
+    "9:00 PM",
+  );
 });

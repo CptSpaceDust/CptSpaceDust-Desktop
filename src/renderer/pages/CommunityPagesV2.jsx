@@ -316,29 +316,6 @@ export function IntroductionsPage({ user, profile }) {
         }
       />
       {message && <p className="form-message">{message}</p>}
-      <section
-        className="panel ideas-guide"
-        aria-label="How the ideas board works"
-      >
-        <div>
-          <strong>1. Share</strong>
-          <span>Explain the problem and the change you want.</span>
-        </div>
-        <div>
-          <strong>2. Vote</strong>
-          <span>Vote for ideas you would actually use.</span>
-        </div>
-        <div>
-          <strong>3. Follow</strong>
-          <span>Status labels show what is being reviewed or built.</span>
-        </div>
-        <div className="ideas-status-key">
-          <span>Pending</span>
-          <span>Considering</span>
-          <span>Working On</span>
-          <span>Completed</span>
-        </div>
-      </section>
       {loading ? (
         <Loading />
       ) : error ? (
@@ -512,6 +489,29 @@ export function IdeasPage({ user, profile }) {
         }
       />
       {message && <p className="form-message">{message}</p>}
+      <section
+        className="panel ideas-guide"
+        aria-label="How the ideas board works"
+      >
+        <div>
+          <strong>1. Share</strong>
+          <span>Explain the problem and the change you want.</span>
+        </div>
+        <div>
+          <strong>2. Vote</strong>
+          <span>Vote for ideas you would actually use.</span>
+        </div>
+        <div>
+          <strong>3. Follow</strong>
+          <span>Status labels show what is being reviewed or built.</span>
+        </div>
+        <div className="ideas-status-key">
+          <span>Pending</span>
+          <span>Considering</span>
+          <span>Working On</span>
+          <span>Completed</span>
+        </div>
+      </section>
       {loading ? (
         <Loading />
       ) : error ? (
@@ -524,60 +524,81 @@ export function IdeasPage({ user, profile }) {
               body="Try another filter or share the first idea here."
             />
           )}
-          {items.map((item) => (
-            <article className="panel idea-card" key={item.id}>
-              <div className="vote-column">
-                <button
-                  className={
-                    item.votes.some((v) => v.user_id === user.id)
-                      ? "vote active"
-                      : "vote"
-                  }
-                  onClick={() => vote(item)}
-                >
-                  <Vote />
-                  <strong>{item.votes.length}</strong>
-                </button>
-              </div>
-              <div className="idea-card-content">
-                <div className="card-meta">
-                  {captain(profile) ? (
-                    <select
-                      value={item.status}
-                      onChange={(e) => status(item, e.target.value)}
-                    >
-                      <option>Pending</option>
-                      <option>Considering</option>
-                      <option>Working On</option>
-                      <option>Completed</option>
-                      <option>Declined</option>
-                    </select>
-                  ) : (
-                    <span
-                      className={`status ${String(item.status).toLowerCase().replaceAll(" ", "-")}`}
-                    >
-                      {item.status}
-                    </span>
-                  )}
-                  <span>{formatDate(item.created_at)}</span>
+          {items.map((item) => {
+            const voted = item.votes.some((v) => v.user_id === user.id);
+            const author = item.username || "Crew member";
+            const statusClass = String(item.status)
+              .toLowerCase()
+              .replaceAll(" ", "-");
+            return (
+              <article
+                className={`panel idea-card idea-card-${statusClass}`}
+                key={item.id}
+              >
+                <div className="idea-vote-rail">
+                  <button
+                    className={voted ? "vote active" : "vote"}
+                    onClick={() => vote(item)}
+                    aria-pressed={voted}
+                    aria-label={`${voted ? "Remove your vote from" : "Vote for"} ${item.title}`}
+                  >
+                    <Vote />
+                    <strong>{item.votes.length}</strong>
+                    <span>{item.votes.length === 1 ? "vote" : "votes"}</span>
+                  </button>
                 </div>
-                <h2>{item.title}</h2>
-                <p>{item.description}</p>
-                <div className="idea-card-footer">
-                  <small>Proposed by {item.username || "Crew member"}</small>
-                  {(item.user_id === user.id || captain(profile)) && (
-                    <button
-                      className="button danger compact-button"
-                      onClick={() => remove(item)}
-                    >
-                      <Trash2 />
-                      Delete
-                    </button>
-                  )}
+                <div className="idea-card-content">
+                  <div className="idea-card-topline">
+                    {captain(profile) ? (
+                      <select
+                        className="idea-status-select"
+                        value={item.status}
+                        onChange={(e) => status(item, e.target.value)}
+                        aria-label={`Status for ${item.title}`}
+                      >
+                        <option>Pending</option>
+                        <option>Considering</option>
+                        <option>Working On</option>
+                        <option>Completed</option>
+                        <option>Declined</option>
+                      </select>
+                    ) : (
+                      <span className={`status ${statusClass}`}>
+                        {item.status}
+                      </span>
+                    )}
+                    <time dateTime={item.created_at}>
+                      {formatDate(item.created_at)}
+                    </time>
+                  </div>
+                  <h2>{item.title}</h2>
+                  <div className="idea-description">
+                    <p>{item.description}</p>
+                  </div>
+                  <div className="idea-card-footer">
+                    <div className="idea-author">
+                      <span className="idea-author-avatar" aria-hidden="true">
+                        {author.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span>
+                        <small>Proposed by</small>
+                        <strong>{author}</strong>
+                      </span>
+                    </div>
+                    {(item.user_id === user.id || captain(profile)) && (
+                      <button
+                        className="button danger compact-button idea-delete-button"
+                        onClick={() => remove(item)}
+                      >
+                        <Trash2 />
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
       {open && (

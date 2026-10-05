@@ -3,7 +3,7 @@ import { CheckCircle2, CloudOff, Minus, Wrench, X } from "lucide-react";
 import { getMeetups } from "../lib/data";
 import { getPreferences, isQuietTime } from "../lib/preferences";
 import { playNotificationSound } from "../lib/sounds";
-import { communityDateTime } from "../lib/time";
+import { meetupInstant } from "../lib/time";
 import BrandMark from "./BrandMark";
 
 export function ConnectivityBanner() {
@@ -42,10 +42,7 @@ export function useMeetupReminders(userId) {
           (row.user_id === userId || row.with_user_id === userId) &&
           row.status === "approved",
       )) {
-        const start = communityDateTime(
-          item.meetup_date,
-          item.start_time || "00:00",
-        ).getTime();
+        const start = meetupInstant(item).getTime();
         const key = `meetup-reminder:${item.id}:${settings.reminderMinutes}`;
         if (
           start > now &&

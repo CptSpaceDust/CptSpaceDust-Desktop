@@ -11,9 +11,9 @@ test("sidebar matches the requested website community layout", () => {
     "Guidelines",
     "Introductions",
     "Crew Directory",
-    "Birthdays",
     "Collab Board",
     "Ideas Board",
+    "Birthdays",
   ];
   let previous = -1;
   for (const label of labels) {
@@ -37,6 +37,18 @@ test("community parity controls are wired", () => {
   assert.match(pages, /Refresh collaborations/);
   assert.match(messages, /Request to DM/);
   assert.match(notifications, /Clear All/);
+});
+
+test("the ideas guide only appears on the Ideas Board", () => {
+  const pages = read("pages/CommunityPagesV2.jsx");
+  const introductionsStart = pages.indexOf("export function IntroductionsPage");
+  const ideasStart = pages.indexOf("export function IdeasPage");
+  const collabsStart = pages.indexOf("export function CollabsPage");
+  const introductions = pages.slice(introductionsStart, ideasStart);
+  const ideas = pages.slice(ideasStart, collabsStart);
+
+  assert.doesNotMatch(introductions, /How the ideas board works/);
+  assert.match(ideas, /How the ideas board works/);
 });
 
 test("desktop login alerts and support errors mirror the website", () => {
@@ -69,6 +81,14 @@ test("person-to-person meetup planning includes availability and captain reports
   assert.match(captain, /with_user_id/);
   assert.match(captain, /requiresCaptainApproval/);
   assert.match(meetups, /Captain approval is not needed/);
+  assert.match(meetups, /All dates and times are shown in your time zone/);
+  assert.match(meetups, /time_zone: localTimeZoneName\(\)/);
+  assert.doesNotMatch(meetups, /Times use Mountain Time/);
+  assert.doesNotMatch(meetups, /Step 1/);
+  assert.match(meetups, /I’m off for a long time/);
+  assert.match(meetups, /setLongTermMeetupAvailability/);
+  assert.match(meetups, /based on how\s+they’ve configured it/);
+  assert.match(read("pages/EnhancedCommunityPages.jsx"), /crew-avatar-stack/);
   assert.match(settings, /Increase text and border contrast/);
   assert.doesNotMatch(settings, /Windows notifications are available/);
 });

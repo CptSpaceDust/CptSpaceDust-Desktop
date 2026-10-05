@@ -31,7 +31,7 @@ export default function CaptainPage({ user, profile }) {
         meetups: supabase
           .from("meetup_requests")
           .select(
-            "id,user_id,with_user_id,invitee_status,meetup_date,start_time,duration,message,meetup_type,status",
+            "id,user_id,with_user_id,invitee_status,meetup_date,start_time,time_zone,duration,message,meetup_type,status",
           )
           .in("status", ["pending", "approved"])
           .order("meetup_date"),

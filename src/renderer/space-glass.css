@@ -637,6 +637,22 @@ input[type="file"]::file-selector-button {
   border-color: rgba(143, 202, 255, 0.17);
 }
 
+.idea-card {
+  border-color: color-mix(
+    in srgb,
+    var(--idea-accent) 26%,
+    rgba(143, 202, 255, 0.17)
+  );
+  background:
+    radial-gradient(
+      circle at 0 0,
+      color-mix(in srgb, var(--idea-accent) 15%, transparent),
+      transparent 36%
+    ),
+    linear-gradient(145deg, rgba(22, 37, 65, 0.7), rgba(7, 15, 31, 0.76)),
+    var(--glass);
+}
+
 .looking-for,
 .comment,
 .request-panel,

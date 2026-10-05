@@ -89,11 +89,15 @@ export function CrewPage({ onViewProfile }) {
               badges = [...badges, "Supporter"];
             return (
               <article className="panel crew-card" key={person.id}>
-                <div className={`crew-status ${online ? "online" : "offline"}`}>
-                  <span />
-                  {online ? "Online" : "Offline"}
+                <div className="crew-avatar-stack">
+                  <div
+                    className={`crew-status ${online ? "online" : "offline"}`}
+                  >
+                    <span />
+                    {online ? "Online" : "Offline"}
+                  </div>
+                  <Avatar profile={person} size={72} />
                 </div>
-                <Avatar profile={person} size={72} />
                 <h3>{person.username}</h3>
                 <span className="rank">{person.rank || "Crew"}</span>
                 {!online && (
